@@ -1,0 +1,110 @@
+-- Удаление таблиц в нужном порядке (из-за внешних ключей)
+DROP TABLE IF EXISTS public.borrow_record;
+DROP TABLE IF EXISTS public.student;
+DROP TABLE IF EXISTS public.book;
+DROP TABLE IF EXISTS public."user";
+
+-------------------------------------------------
+-- Создание таблицы public.book
+-------------------------------------------------
+CREATE TABLE public.book (
+    id serial PRIMARY KEY,
+    title varchar(255) NOT NULL,
+    author varchar(255) NOT NULL,
+    "publishedYear" int NOT NULL,
+    isbn varchar(255),
+    "localNumber" varchar(255)
+);
+
+-------------------------------------------------
+-- Создание таблицы public.student
+-------------------------------------------------
+CREATE TABLE public.student (
+    id serial PRIMARY KEY,
+    first_name varchar(255) NOT NULL,
+    last_name varchar(255) NOT NULL,
+    middle_name varchar(255),
+    group_name varchar(100)
+);
+
+-------------------------------------------------
+-- Создание таблицы public."user"
+-------------------------------------------------
+CREATE TABLE public."user" (
+    id serial PRIMARY KEY,
+    username varchar(255) NOT NULL UNIQUE,
+    "password" varchar(255) NOT NULL
+);
+
+-------------------------------------------------
+-- Создание таблицы public.borrow_record
+-------------------------------------------------
+CREATE TABLE public.borrow_record (
+    id serial PRIMARY KEY,
+    book_id int NOT NULL,
+    student_id int NOT NULL,
+    borrow_date date,               -- дата выдачи
+    return_date date,               -- дата возврата (заполняется вместе с accepted_by_user_id)
+    issued_by_user_id int NOT NULL,   -- пользователь, выдавший книгу
+    accepted_by_user_id int,         -- пользователь, принявший книгу обратно (NULL, если книга еще не возвращена)
+    
+    CONSTRAINT fk_borrowrecord_book 
+        FOREIGN KEY (book_id) REFERENCES public.book(id) ON DELETE CASCADE,
+    CONSTRAINT fk_borrowrecord_student 
+        FOREIGN KEY (student_id) REFERENCES public.student(id) ON DELETE CASCADE,
+    CONSTRAINT fk_borrowrecord_issued_by_user 
+        FOREIGN KEY (issued_by_user_id) REFERENCES public."user"(id) ON DELETE CASCADE,
+    CONSTRAINT fk_borrowrecord_accepted_by_user 
+        FOREIGN KEY (accepted_by_user_id) REFERENCES public."user"(id) ON DELETE CASCADE,
+    
+    -- Ограничение: либо книга еще не возвращена (accepted_by_user_id и return_date равны NULL),
+    -- либо при возврате оба поля должны быть заполнены.
+    CONSTRAINT check_returned_book 
+        CHECK (
+            (accepted_by_user_id IS NULL AND return_date IS NULL) OR 
+            (accepted_by_user_id IS NOT NULL AND return_date IS NOT NULL)
+        )
+);
+
+-- Уникальный индекс для того, чтобы у одной книги не было более одной записи с незаполненным return_date (книга может быть выдана только один раз одновременно)
+CREATE UNIQUE INDEX idx_borrowrecord_book_id_return_date_null 
+    ON public.borrow_record USING btree (book_id)
+    WHERE (return_date IS NULL);
+
+-------------------------------------------------
+-- Добавление тестовых записей в таблицу public.book
+-------------------------------------------------
+INSERT INTO public.book (title, author, "publishedYear", isbn, "localNumber") VALUES
+('Книга 1', 'Автор А', 2020, 'ISBN-001', 'LN-001'),
+('Книга 2', 'Автор Б', 2018, 'ISBN-002', 'LN-002'),
+('Книга 3', 'Автор В', 2019, 'ISBN-003', 'LN-003');
+
+-------------------------------------------------
+-- Добавление тестовых записей в таблицу public.student
+-------------------------------------------------
+INSERT INTO public.student (first_name, last_name, middle_name, group_name) VALUES
+('Иван', 'Иванов', 'Иванович', 'Группа A'),
+('Пётр', 'Петров', 'Петрович', 'Группа B'),
+('Сергей', 'Сергеев', NULL, 'Группа A');
+
+-------------------------------------------------
+-- Добавление тестовых записей в таблицу public."user"
+-------------------------------------------------
+INSERT INTO public."user" (username, "password") VALUES
+('librarian1', 'password1'),
+('librarian2', 'password2'),
+('admin', 'adminpass');
+
+-------------------------------------------------
+-- Добавление тестовых записей в таблицу public.borrow_record
+-------------------------------------------------
+-- ВНИМАНИЕ:
+-- 1. Если книга выдана, заполняем поля borrow_date и issued_by_user_id.
+-- 2. Если книга возвращена, дополнительно заполняем return_date и accepted_by_user_id.
+INSERT INTO public.borrow_record (book_id, student_id, borrow_date, return_date, issued_by_user_id, accepted_by_user_id) VALUES
+-- Запись, где книга выдана, но еще не возвращена:
+(1, 1, '2025-01-15', NULL, 1, NULL),
+-- Запись, где книга выдана и возвращена:
+(2, 2, '2025-01-20', '2025-02-05', 2, 3),
+-- Еще одна запись, где книга выдана, но не возвращена:
+(3, 3, '2025-01-25', NULL, 1, NULL);
