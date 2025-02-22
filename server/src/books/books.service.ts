@@ -18,7 +18,6 @@ export class BooksService {
     });
   }
 
-
   async findOneWithRelations(id: number): Promise<Book> {
     return this.bookRepository.findOne({
       where: { id },

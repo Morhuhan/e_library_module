@@ -1,3 +1,4 @@
+// src/components/Register.tsx
 import React, { useState } from 'react';
 import httpClient from '../utils/httpClient.tsx';
 import { toast } from 'react-toastify';
@@ -11,24 +12,24 @@ const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Регистрируем пользователя
+      // Сначала регистрируем пользователя
       await httpClient.post('/users/register', { username, password });
 
-      // Автоматически выполняем логин после регистрации
+      // Затем логиним его
       const response = await httpClient.post('/auth/login', { username, password });
-      
-      // Сохраняем токен и имя пользователя
-      localStorage.setItem('token', response.data.access_token);
+      // Сервер вернёт { message, username }, плюс установит cookie
+
+      // Сохраняем имя пользователя
       localStorage.setItem('username', response.data.username);
 
       // Очищаем поля
       setUsername('');
       setPassword('');
 
-      // Показываем уведомление об успешной регистрации и логине
-      toast.success('Регистрация прошла успешно!');
+      // Уведомление
+      toast.success('Регистрация и вход прошли успешно!');
 
-      // Перенаправляем на главную страницу
+      // Переход на главную страницу (или куда хотите)
       navigate('/');
     } catch (error) {
       console.error('Ошибка при регистрации:', error);

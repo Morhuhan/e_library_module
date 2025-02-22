@@ -1,25 +1,13 @@
+// src/utils/httpClient.tsx
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
 const httpClient = axios.create({
-  baseURL: 'http://localhost:4000',
+  baseURL: 'http://localhost:4000', // ваш URL к серверу
+  withCredentials: true, 
 });
 
-// Интерцептор запросов - автоматически проставляем Authorization, если есть токен
-httpClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  },
-);
-
-// Интерцептор ответов - обрабатываем ошибки
+// Интерцептор ОТВЕТА - обрабатываем ошибки, чтобы показывать их через toast
 httpClient.interceptors.response.use(
   (response) => response,
   (error) => {

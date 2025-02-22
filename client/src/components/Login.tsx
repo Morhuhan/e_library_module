@@ -1,3 +1,4 @@
+// src/components/Login.tsx
 import React, { useState } from 'react';
 import httpClient from '../utils/httpClient.tsx';
 import { useNavigate } from 'react-router-dom';
@@ -6,29 +7,27 @@ import { toast } from 'react-toastify';
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-
-  // Хук для перенаправления
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await httpClient.post('/auth/login', {
-        username,
-        password,
-      });
-  
-      localStorage.setItem('token', response.data.access_token);
+      const response = await httpClient.post('/auth/login', { username, password });
+      // Сервер вернёт { message, username } и установит cookie
+
+      // Сохраняем имя пользователя (опционально) — чтобы UI знал, что "мы залогинены"
       localStorage.setItem('username', response.data.username);
-  
+
       toast.success('Успешный вход в систему!');
-  
+
+      // Очищаем поля
       setUsername('');
       setPassword('');
-  
+
+      // Переходим на главную или любую другую страницу
       navigate('/');
     } catch (error: any) {
-      console.error(error);
+      console.error('Ошибка при авторизации:', error);
     }
   };
 

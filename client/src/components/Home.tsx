@@ -1,33 +1,47 @@
 // src/components/Home.tsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import httpClient from '../utils/httpClient.tsx';
 
 function Home() {
   const navigate = useNavigate();
+  const username = localStorage.getItem('username') || '';
 
-  // Проверяем наличие токена
-  const token = localStorage.getItem('token');
-  // Если при авторизации вы сохраняете имя пользователя под ключом "username"
-  const username = localStorage.getItem('username') || 'Пользователь';
-
-  // Обработчики кликов для залогиненного пользователя
   const handleLibraryClick = () => {
     navigate('/lists');
   };
 
   const handleContingentClick = () => {
-    // Пока ничего не делаем
-  };
-  
-  const handleLogout = () => {
-    // Удаляем токен и имя пользователя из localStorage
-    localStorage.removeItem('token');
-    localStorage.removeItem('username');
-    // Перенаправляем на главную страницу
-    navigate('/');
+    navigate('/action');
   };
 
-  // Обработчики для незалогиненного пользователя
+  const handleLogout = async () => {
+    try {
+      // Сервер очистит httpOnly cookie
+      await httpClient.post('/auth/logout');
+      // Удаляем имя пользователя из localStorage
+      localStorage.removeItem('username');
+      // Перенаправляем на главную
+      navigate('/');
+    } catch (err) {
+      console.error('Ошибка при выходе из системы:', err);
+    }
+  };
+
+  // Если есть username – считаем, что авторизован
+  if (username) {
+    return (
+      <div>
+        <h1>Здравствуйте, {username}!</h1>
+        
+        <button onClick={handleLibraryClick}>Библиотека</button>
+        <button onClick={handleContingentClick}>Контингент</button>
+        <button onClick={handleLogout}>Выход</button>
+      </div>
+    );
+  }
+
+  // Иначе не авторизован
   const handleLoginClick = () => {
     navigate('/login');
   };
@@ -36,28 +50,6 @@ function Home() {
     navigate('/register');
   };
 
-  // Если пользователь авторизован
-  if (token) {
-    return (
-      <div>
-        <h1>Здравствуйте, {username}!</h1>
-        
-        <button onClick={handleLibraryClick}>
-          Библиотека
-        </button>
-        
-        <button onClick={handleContingentClick}>
-          Контингент
-        </button>
-
-        <button onClick={handleLogout}>
-          Выход
-        </button>
-      </div>
-    );
-  }
-
-  // Если пользователь не авторизован
   return (
     <div>
       <h1>Для продолжения необходимо войти.</h1>
