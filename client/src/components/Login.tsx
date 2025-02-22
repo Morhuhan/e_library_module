@@ -13,18 +13,10 @@ const Login: React.FC = () => {
     e.preventDefault();
     try {
       const response = await httpClient.post('/auth/login', { username, password });
-      // Сервер вернёт { message, username } и установит cookie
-
-      // Сохраняем имя пользователя (опционально) — чтобы UI знал, что "мы залогинены"
       localStorage.setItem('username', response.data.username);
-
       toast.success('Успешный вход в систему!');
-
-      // Очищаем поля
       setUsername('');
       setPassword('');
-
-      // Переходим на главную или любую другую страницу
       navigate('/');
     } catch (error: any) {
       console.error('Ошибка при авторизации:', error);

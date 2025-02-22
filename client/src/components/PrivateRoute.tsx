@@ -1,10 +1,27 @@
-// src/сomponents/PrivateRoute.tsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
+import httpClient from '../utils/httpClient.tsx';
 
-const PrivateRoute = () => {
-  const token = localStorage.getItem('token');
-  return token ? <Outlet /> : <Navigate to="/" replace />;
+const PrivateRoute: React.FC = () => {
+  const [isAuth, setIsAuth] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        await httpClient.get('/auth/me');
+        setIsAuth(true);
+      } catch (error) {
+        setIsAuth(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  if (isAuth === null) {
+    return <div>Loading...</div>;
+  }
+
+  return isAuth ? <Outlet /> : <Navigate to="/login" replace />;
 };
 
 export default PrivateRoute;

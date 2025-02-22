@@ -1,9 +1,10 @@
 // auth.controller.ts
-import { Controller, Post, Body, UnauthorizedException, Res } from '@nestjs/common';
+import { Controller, Post, Body, UnauthorizedException, Res, Get, Request, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import * as ms from 'ms';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 export class AuthController {
@@ -50,5 +51,12 @@ export class AuthController {
     // Очищаем cookie
     res.clearCookie('access_token');
     return res.json({ message: 'Вы вышли из системы' });
+  }
+
+  // Новый метод для получения информации о текущем пользователе
+  @Get('me')
+  @UseGuards(AuthGuard('jwt'))
+  getCurrentUser(@Request() req) {
+    return req.user; // Должен быть доступен пользователь, если guard прошел успешно
   }
 }

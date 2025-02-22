@@ -17,11 +17,8 @@ function Home() {
 
   const handleLogout = async () => {
     try {
-      // Сервер очистит httpOnly cookie
       await httpClient.post('/auth/logout');
-      // Удаляем имя пользователя из localStorage
       localStorage.removeItem('username');
-      // Перенаправляем на главную
       navigate('/');
     } catch (err) {
       console.error('Ошибка при выходе из системы:', err);
