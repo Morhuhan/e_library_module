@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   UseGuards,
   Request,
+  Get,
 } from '@nestjs/common';
 import { BorrowRecordsService } from './borrow-records.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -38,5 +39,10 @@ export class BorrowRecordsController {
     // userId — это ID текущего пользователя, который "принимает" книгу
     const userId = req.user.userId;
     return this.borrowRecordsService.returnBook(id, userId);
+  }
+
+  @Get()
+  async findAllBorrowRecords() {
+    return this.borrowRecordsService.findAll();
   }
 }

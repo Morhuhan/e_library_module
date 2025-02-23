@@ -11,6 +11,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import PrivateRoute from './components/PrivateRoute.tsx';
+import BorrowRecordsList from './components/BorrowRecordsList.tsx';
 
 const Layout: React.FC = () => {
   const location = useLocation();
@@ -32,6 +33,7 @@ const Layout: React.FC = () => {
         <Route element={<PrivateRoute />}>
           <Route path="/lists" element={<Lists />} />
           <Route path="/action" element={<BorrowReturn />} />
+          <Route path="/borrow-records" element={<BorrowRecordsList />} />
         </Route>
       </Routes>
     </>
