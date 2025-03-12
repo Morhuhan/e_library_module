@@ -11,7 +11,7 @@ interface Student {
 
 interface User {
   id: number;
-  // Можно дополнить полями, если нужно
+  username?: string;
 }
 
 interface Book {
@@ -20,12 +20,17 @@ interface Book {
   author: string;
   publishedYear: number;
   isbn?: string;
-  localNumber?: string;
+}
+
+interface BookCopy {
+  id: number;
+  inventoryNumber: string;
+  book: Book; // Связь с книгой
 }
 
 interface BorrowRecord {
   id: number;
-  book: Book;
+  bookCopy: BookCopy;       // ВАЖНО: вместо record.book
   student: Student;
   issuedByUser: User;
   acceptedByUser: User | null;
@@ -52,25 +57,16 @@ const BorrowRecordsList: React.FC = () => {
     fetchBorrowRecords();
   }, []);
 
-  // Обработчик изменения значения поля поиска
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchValue(e.target.value);
-  };
-
-  // Проверяем, возвращена ли книга (есть ли returnDate)
+  // Проверяем, возвращена ли книга (returnDate != null)
   const isReturned = (record: BorrowRecord) => {
-    return record.returnDate != null;
+    return record.returnDate !== null;
   };
 
-  // Фильтруем записи
+  // Фильтр по фамилии (части фамилии) + только долги
   const filteredRecords = borrowRecords.filter((record) => {
-    // Фильтр по фамилии (или части фамилии) студента
     const studentLastName = record.student.lastName.toLowerCase();
     const matchesStudentName = studentLastName.includes(searchValue.toLowerCase());
-
-    // Фильтр "только долги" (нет returnDate)
     const matchesDebtFilter = onlyDebts ? !isReturned(record) : true;
-
     return matchesStudentName && matchesDebtFilter;
   });
 
@@ -83,7 +79,7 @@ const BorrowRecordsList: React.FC = () => {
           type="text"
           placeholder="Поиск по фамилии студента..."
           value={searchValue}
-          onChange={handleSearchChange}
+          onChange={(e) => setSearchValue(e.target.value)}
           className="search-input"
         />
       </div>
@@ -95,7 +91,7 @@ const BorrowRecordsList: React.FC = () => {
             checked={onlyDebts}
             onChange={(e) => setOnlyDebts(e.target.checked)}
           />
-          Показать только долги (не возвращенные)
+          Показать только не возвращённые
         </label>
       </div>
 
@@ -103,12 +99,13 @@ const BorrowRecordsList: React.FC = () => {
         <thead>
           <tr>
             <th>ID записи</th>
-            <th>Книга</th>
+            <th>Название книги</th>
+            <th>Инв. номер</th>
             <th>Студент</th>
             <th>Дата выдачи</th>
             <th>Дата возврата</th>
-            <th>Выдал (ID пользователя)</th>
-            <th>Принял (ID пользователя)</th>
+            <th>Кто выдал</th>
+            <th>Кто принял</th>
           </tr>
         </thead>
         <tbody>
@@ -116,20 +113,29 @@ const BorrowRecordsList: React.FC = () => {
             filteredRecords.map((record) => (
               <tr key={record.id}>
                 <td>{record.id}</td>
-                <td>{record.book.title}</td>
+                <td>{record.bookCopy.book.title}</td>
+                <td>{record.bookCopy.inventoryNumber}</td>
                 <td>
                   {record.student.lastName} {record.student.firstName}
                   {record.student.groupName && ` (${record.student.groupName})`}
                 </td>
                 <td>{record.borrowDate || '—'}</td>
                 <td>{record.returnDate || '—'}</td>
-                <td>{record.issuedByUser?.id || '—'}</td>
-                <td>{record.acceptedByUser?.id || '—'}</td>
+                <td>
+                  {record.issuedByUser?.username
+                    ? record.issuedByUser.username
+                    : record.issuedByUser?.id || '—'}
+                </td>
+                <td>
+                  {record.acceptedByUser?.username
+                    ? record.acceptedByUser.username
+                    : record.acceptedByUser?.id || '—'}
+                </td>
               </tr>
             ))
           ) : (
             <tr>
-              <td colSpan={7} className="no-records">
+              <td colSpan={8} className="no-records">
                 Нет записей, удовлетворяющих условиям поиска
               </td>
             </tr>

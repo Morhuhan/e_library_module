@@ -1,5 +1,3 @@
-// src/components/Lists.tsx
-
 import React, { useState, useEffect } from 'react';
 import httpClient from '../utils/httpClient.tsx';
 
@@ -9,14 +7,20 @@ interface BorrowRecord {
   returnDate: string | null;
 }
 
+interface BookCopy {
+  id: number;
+  inventoryNumber: string;
+  borrowRecords?: BorrowRecord[];
+}
+
 interface Book {
   id: number;
   title: string;
   author: string;
   publishedYear: number;
   isbn?: string;
-  localNumber?: string;
-  borrowRecords?: BorrowRecord[];
+  // localNumber?: string; // Если вы больше не храните localNumber в Book, уберите
+  bookCopies?: BookCopy[];
 }
 
 const Lists: React.FC = () => {
@@ -24,11 +28,10 @@ const Lists: React.FC = () => {
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [books, setBooks] = useState<Book[]>([]);
 
-  // Загружаем список книг
+  // Загружаем список книг (каждая книга содержит массив bookCopies)
   const fetchBooks = async () => {
     try {
       const response = await httpClient.get<Book[]>('/books');
-      console.log(response.data);
       setBooks(response.data);
     } catch (error) {
       console.error('Ошибка при получении списка книг:', error);
@@ -39,23 +42,31 @@ const Lists: React.FC = () => {
     fetchBooks();
   }, []);
 
-  // Обработка поиска по названию
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchValue(e.target.value);
+  // Проверяем, доступна ли хотя бы одна копия
+  const hasAvailableCopy = (book: Book) => {
+    if (!book.bookCopies || book.bookCopies.length === 0) {
+      return false; // Нет экземпляров, значит 0 в наличии
+    }
+    // Если у хотя бы одного экземпляра НЕТ активного borrowRecord (без returnDate), значит он доступен
+    return book.bookCopies.some((copy) => {
+      // Нет записей — значит никогда не выдавали, следовательно, доступна
+      if (!copy.borrowRecords || copy.borrowRecords.length === 0) {
+        return true;
+      }
+      // Проверяем, есть ли незакрытая выдача (returnDate == null)
+      const isCurrentlyBorrowed = copy.borrowRecords.some(
+        (record) => !record.returnDate
+      );
+      return !isCurrentlyBorrowed; // если ни одной незакрытой выдачи нет, копия доступна
+    });
   };
 
-  // Определяем, доступна ли книга (нет активных записей о выдаче)
-  const isBookAvailable = (book: Book) => {
-    if (!book.borrowRecords) return true;
-    return !book.borrowRecords.some((record) => !record.returnDate);
-  };
-
-  // Применяем фильтры: по названию и &laquo;только в наличии&raquo;
+  // Фильтр по названию + флаг &laquo;только доступные&raquo;
   const filteredBooks = books.filter((book) => {
     const matchesTitle = book.title
       .toLowerCase()
       .includes(searchValue.toLowerCase());
-    const matchesAvailability = onlyAvailable ? isBookAvailable(book) : true;
+    const matchesAvailability = onlyAvailable ? hasAvailableCopy(book) : true;
     return matchesTitle && matchesAvailability;
   });
 
@@ -68,7 +79,7 @@ const Lists: React.FC = () => {
           type="text"
           placeholder="Поиск по названию..."
           value={searchValue}
-          onChange={handleSearchChange}
+          onChange={(e) => setSearchValue(e.target.value)}
           className="search-input"
         />
       </div>
@@ -80,7 +91,7 @@ const Lists: React.FC = () => {
             checked={onlyAvailable}
             onChange={(e) => setOnlyAvailable(e.target.checked)}
           />
-          Показать только в наличии
+          Показать только доступные
         </label>
       </div>
 
@@ -90,26 +101,27 @@ const Lists: React.FC = () => {
             <th>Название</th>
             <th>Автор</th>
             <th>Год</th>
-            <th>Локальный номер</th>
             <th>ISBN</th>
             <th>Статус</th>
           </tr>
         </thead>
         <tbody>
           {filteredBooks.length > 0 ? (
-            filteredBooks.map((book) => (
-              <tr key={book.id}>
-                <td>{book.title}</td>
-                <td>{book.author}</td>
-                <td>{book.publishedYear}</td>
-                <td>{book.localNumber || '—'}</td>
-                <td>{book.isbn || '—'}</td>
-                <td>{isBookAvailable(book) ? 'В наличии' : 'Выдана'}</td>
-              </tr>
-            ))
+            filteredBooks.map((book) => {
+              const available = hasAvailableCopy(book);
+              return (
+                <tr key={book.id}>
+                  <td>{book.title}</td>
+                  <td>{book.author}</td>
+                  <td>{book.publishedYear}</td>
+                  <td>{book.isbn || '—'}</td>
+                  <td>{available ? 'Есть доступные экземпляры' : 'Все выданы'}</td>
+                </tr>
+              );
+            })
           ) : (
             <tr>
-              <td colSpan={6} className="no-books">
+              <td colSpan={5} className="no-books">
                 Нет книг, удовлетворяющих условиям поиска
               </td>
             </tr>

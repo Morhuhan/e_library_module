@@ -1,28 +1,44 @@
-// src/books/book.entity.ts
+import { BookCopy } from 'src/book-copies/book-copy.entity';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+} from 'typeorm';
 
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
-import { BorrowRecord } from '../borrow-records/borrow-record.entity';
-
-@Entity('book') // Имя таблицы – 'book'
+@Entity('book') // Таблица "book"
 export class Book {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'title' })
+  @Column()
   title: string;
 
-  @Column({ name: 'author' })
+  @Column()
   author: string;
 
-  @Column({ name: 'publishedYear' })
+  @Column()
   publishedYear: number;
 
-  @Column({ name: 'isbn', nullable: true })
+  @Column({ nullable: true })
+  udc: string;
+
+  @Column({ nullable: true })
+  grnti: string;
+
+  @Column({ nullable: true })
   isbn: string;
 
-  @Column({ name: 'localNumber', nullable: true })
-  localNumber: string;
+  @Column({ nullable: true })
+  publisher: string;
 
-  @OneToMany(() => BorrowRecord, (record) => record.book, { cascade: true })
-  borrowRecords: BorrowRecord[];
+  @Column({ nullable: true })
+  category: string; 
+  
+  @Column({ nullable: true })
+  pages: number;
+
+  // Связь "один-ко-многим" с BookCopy
+  @OneToMany(() => BookCopy, (copy) => copy.book, { cascade: true })
+  bookCopies: BookCopy[];
 }

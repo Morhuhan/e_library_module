@@ -15,10 +15,10 @@ export class AuthController {
 
   @Post('login')
   async login(
-    @Body() body: { username: string; password: string },
+    @Body() body: { username: string; pass: string },
     @Res() res: Response,
   ) {
-    const user = await this.authService.validateUser(body.username, body.password);
+    const user = await this.authService.validateUser(body.username, body.pass);
     if (!user) {
       throw new UnauthorizedException('Неправильный логин или пароль');
     }

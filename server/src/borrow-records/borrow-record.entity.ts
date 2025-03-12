@@ -5,29 +5,32 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { Book } from '../books/book.entity';
 import { Student } from '../students/student.entity';
 import { User } from '../users/user.entity';
+import { BookCopy } from '../book-copies/book-copy.entity';
 
 @Entity('borrow_record')
 export class BorrowRecord {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Book, (book) => book.borrowRecords)
-  @JoinColumn({ name: 'book_id' })
-  book: Book;
+  // Ссылка на конкретный экземпляр книги
+  @ManyToOne(() => BookCopy, (copy) => copy.borrowRecords, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'book_copy_id' })
+  bookCopy: BookCopy;
 
   @ManyToOne(() => Student)
   @JoinColumn({ name: 'student_id' })
   student: Student;
 
-  // Поле, указывающее на пользователя, который ВЫДАЛ книгу
+  // Кто выдал
   @ManyToOne(() => User)
   @JoinColumn({ name: 'issued_by_user_id' })
   issuedByUser: User;
 
-  // Поле, указывающее на пользователя, который ПРИНЯЛ (вернул) книгу
+  // Кто принял (вернул)
   @ManyToOne(() => User)
   @JoinColumn({ name: 'accepted_by_user_id' })
   acceptedByUser: User;

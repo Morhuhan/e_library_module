@@ -12,30 +12,27 @@ export class BorrowRecordsService {
 
   // Создание записи о выдаче книги
   async createBorrowRecord(
-    bookId: number,
+    bookCopyId: number, // вместо bookId
     studentId: number,
     issuedByUserId: number,
   ): Promise<BorrowRecord> {
     const newRecord = this.borrowRecordRepository.create({
-      // book, student, issuedByUser — связаны с другими сущностями,
-      // поэтому достаточно указать их ID (через "as any") или вручную.
-      book: { id: bookId } as any,
+      // вместо book: { id: bookId }:
+      bookCopy: { id: bookCopyId } as any,
       student: { id: studentId } as any,
       issuedByUser: { id: issuedByUserId } as any,
-
-      borrowDate: new Date().toISOString().split('T')[0],
+      borrowDate: new Date().toISOString().split('T')[0], // упрощённо
       returnDate: null,
-      // acceptedByUser оставим null, пока книгу не вернули
     });
 
     return this.borrowRecordRepository.save(newRecord);
   }
 
-  // Обновление записи о возврате (проставляем returnDate и acceptedByUser)
+  // Приём возврата (проставляем returnDate и acceptedByUser)
   async returnBook(recordId: number, acceptedByUserId: number): Promise<BorrowRecord> {
     const record = await this.borrowRecordRepository.findOne({
       where: { id: recordId },
-      relations: ['book', 'student', 'issuedByUser', 'acceptedByUser'],
+      relations: ['bookCopy', 'student', 'issuedByUser', 'acceptedByUser'],
     });
     if (!record) {
       throw new Error('Запись о выдаче не найдена');
@@ -47,18 +44,18 @@ export class BorrowRecordsService {
     return this.borrowRecordRepository.save(record);
   }
 
-  // Получить все записи
+  // Все записи
   findAll(): Promise<BorrowRecord[]> {
     return this.borrowRecordRepository.find({
-      relations: ['book', 'student', 'issuedByUser', 'acceptedByUser'],
+      relations: ['bookCopy', 'bookCopy.book', 'student', 'issuedByUser', 'acceptedByUser'],
     });
   }
 
-  // Получить конкретную запись по id
+  // Одна запись
   findOne(id: number): Promise<BorrowRecord> {
     return this.borrowRecordRepository.findOne({
       where: { id },
-      relations: ['book', 'student', 'issuedByUser', 'acceptedByUser'],
+      relations: ['bookCopy', 'bookCopy.book', 'student', 'issuedByUser', 'acceptedByUser'],
     });
   }
 }

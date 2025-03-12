@@ -1,13 +1,14 @@
+// user.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
-@Entity('user') // Указываем имя таблицы как 'user'
+@Entity('user')
 export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'username', unique: true })
+  @Column({ unique: true })
   username: string;
 
-  @Column({ name: 'password' })
-  password: string;
+  @Column()
+  pass: string;
 }

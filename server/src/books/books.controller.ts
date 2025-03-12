@@ -1,6 +1,15 @@
-// books.controller.ts
-
-import { Controller, Get, Param, Query, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  NotFoundException,
+  Post,
+  Body,
+  Put,
+  Delete,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { BooksService } from './books.service';
 import { Book } from './book.entity';
 
@@ -8,43 +17,53 @@ import { Book } from './book.entity';
 export class BooksController {
   constructor(private readonly booksService: BooksService) {}
 
-  // Прежний метод, возвращающий все книги
   @Get()
   findAll(): Promise<Book[]> {
     return this.booksService.findAll();
   }
 
-  // Новый эндпоинт, который будет отвечать на /books/find
+  // Поиск по какому-нибудь параметру
   @Get('find')
   async findBook(
     @Query('searchType') searchType: string,
     @Query('query') value: string,
   ): Promise<Book> {
-    // Логика поиска по разным полям
     let foundBook: Book | null;
 
     switch (searchType) {
       case 'isbn':
         foundBook = await this.booksService.findOneByIsbn(value);
         break;
-      case 'localNumber':
-        foundBook = await this.booksService.findOneByLocalNumber(value);
-        break;
       default:
-        // Можно выбросить ошибку или вернуть null
         throw new NotFoundException('Неверный тип поиска');
     }
 
     if (!foundBook) {
       throw new NotFoundException('Книга не найдена');
     }
-
     return foundBook;
   }
 
-  // Прежний метод, возвращающий книгу по id
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<Book> {
-    return this.booksService.findOneWithRelations(Number(id));
+  findOne(@Param('id', ParseIntPipe) id: number): Promise<Book> {
+    return this.booksService.findOneWithRelations(id);
+  }
+
+  @Post()
+  create(@Body() data: Partial<Book>): Promise<Book> {
+    return this.booksService.create(data);
+  }
+
+  @Put(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() data: Partial<Book>,
+  ): Promise<Book | null> {
+    return this.booksService.update(id, data);
+  }
+
+  @Delete(':id')
+  remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    return this.booksService.remove(id);
   }
 }

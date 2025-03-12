@@ -17,26 +17,23 @@ import { AuthGuard } from '@nestjs/passport';
 export class BorrowRecordsController {
   constructor(private readonly borrowRecordsService: BorrowRecordsService) {}
 
-  // Создаем запись о выдаче книги
+  // Создаем запись о выдаче (bookCopyId вместо bookId)
   @Post()
   async createBorrowRecord(
-    @Body('bookId') bookId: number,
+    @Body('bookCopyId') bookCopyId: number,
     @Body('studentId') studentId: number,
     @Request() req: any,
   ) {
-    // userId — это ID текущего залогиненного пользователя,
-    // который "выдаёт" книгу
-    const userId = req.user.userId;
-    return this.borrowRecordsService.createBorrowRecord(bookId, studentId, userId);
+    const userId = req.user.userId; // ID текущего залогиненного пользователя
+    return this.borrowRecordsService.createBorrowRecord(bookCopyId, studentId, userId);
   }
 
-  // Возврат книги (проставляем дату возврата и acceptedByUser)
+  // Возврат книги
   @Patch(':id/return')
   async returnBook(
     @Param('id', ParseIntPipe) id: number,
     @Request() req: any,
   ) {
-    // userId — это ID текущего пользователя, который "принимает" книгу
     const userId = req.user.userId;
     return this.borrowRecordsService.returnBook(id, userId);
   }

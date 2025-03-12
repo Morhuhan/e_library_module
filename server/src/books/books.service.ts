@@ -1,10 +1,8 @@
-// src/books/books.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Book } from './book.entity';
-import { Like, ILike, Repository } from 'typeorm';
 
-// books.service.ts
 @Injectable()
 export class BooksService {
   constructor(
@@ -12,45 +10,44 @@ export class BooksService {
     private readonly bookRepository: Repository<Book>,
   ) {}
 
-  async findAll(): Promise<Book[]> {
+  // Получить все "книги" (библиографические данные), 
+  // включая связи с "bookCopies" (экземплярами)
+  findAll(): Promise<Book[]> {
     return this.bookRepository.find({
-      relations: ['borrowRecords'],
+      relations: ['bookCopies'],
     });
   }
 
-  async findOneWithRelations(id: number): Promise<Book> {
+  // Получить книгу по ID (и список её экземпляров)
+  findOneWithRelations(id: number): Promise<Book> {
     return this.bookRepository.findOne({
       where: { id },
-      relations: [
-        'borrowRecords',
-        'borrowRecords.student',
-        'borrowRecords.issuedByUser',
-        'borrowRecords.acceptedByUser',
-      ],
+      relations: ['bookCopies'],
     });
   }
-  
+
+  // Создать (пример)
+  async create(data: Partial<Book>): Promise<Book> {
+    const book = this.bookRepository.create(data);
+    return this.bookRepository.save(book);
+  }
+
+  // Обновить
+  async update(id: number, data: Partial<Book>): Promise<Book | null> {
+    await this.bookRepository.update(id, data);
+    return this.findOneWithRelations(id);
+  }
+
+  // Удалить
+  async remove(id: number): Promise<void> {
+    await this.bookRepository.delete(id);
+  }
+
+  // Поиск по ISBN, если нужно
   async findOneByIsbn(isbn: string): Promise<Book | null> {
     return this.bookRepository.findOne({
       where: { isbn },
-      relations: [
-        'borrowRecords',
-        'borrowRecords.student',
-        'borrowRecords.issuedByUser',
-        'borrowRecords.acceptedByUser',
-      ],
-    });
-  }
-  
-  async findOneByLocalNumber(localNumber: string): Promise<Book | null> {
-    return this.bookRepository.findOne({
-      where: { localNumber },
-      relations: [
-        'borrowRecords',
-        'borrowRecords.student',
-        'borrowRecords.issuedByUser',
-        'borrowRecords.acceptedByUser',
-      ],
+      relations: ['bookCopies'],
     });
   }
 }
