@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { BooksModule } from './books/books.module';
 import { BorrowRecordsModule } from './borrow-records/borrow-records.module';
 import { StudentsModule } from './students/students.module';
+import { BookCopiesModule } from './book-copies/book-copies.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { StudentsModule } from './students/students.module';
     BooksModule,
     BorrowRecordsModule,
     StudentsModule,
+    BookCopiesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,42 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import httpClient from '../utils/httpClient.tsx';
-
-interface Student {
-  id: number;
-  firstName: string;
-  lastName: string;
-  middleName?: string | null;
-  groupName?: string | null;
-}
-
-interface User {
-  id: number;
-  username?: string;
-}
-
-interface Book {
-  id: number;
-  title: string;
-  author: string;
-  publishedYear: number;
-  isbn?: string;
-}
-
-interface BookCopy {
-  id: number;
-  inventoryNumber: string;
-  book: Book; // Связь с книгой
-}
-
-interface BorrowRecord {
-  id: number;
-  bookCopy: BookCopy;       // ВАЖНО: вместо record.book
-  student: Student;
-  issuedByUser: User;
-  acceptedByUser: User | null;
-  borrowDate: string | null;
-  returnDate: string | null;
-}
+import { BorrowRecord } from '../interfaces.ts';
 
 const BorrowRecordsList: React.FC = () => {
   const [borrowRecords, setBorrowRecords] = useState<BorrowRecord[]>([]);
@@ -64,8 +28,10 @@ const BorrowRecordsList: React.FC = () => {
 
   // Фильтр по фамилии (части фамилии) + только долги
   const filteredRecords = borrowRecords.filter((record) => {
-    const studentLastName = record.student.lastName.toLowerCase();
-    const matchesStudentName = studentLastName.includes(searchValue.toLowerCase());
+    // может случиться, что record.student = undefined;
+    // в таком случае подстрахуемся
+    const lastName = record.student?.lastName?.toLowerCase() || '';
+    const matchesStudentName = lastName.includes(searchValue.toLowerCase());
     const matchesDebtFilter = onlyDebts ? !isReturned(record) : true;
     return matchesStudentName && matchesDebtFilter;
   });
@@ -116,8 +82,11 @@ const BorrowRecordsList: React.FC = () => {
                 <td>{record.bookCopy.book.title}</td>
                 <td>{record.bookCopy.inventoryNumber}</td>
                 <td>
-                  {record.student.lastName} {record.student.firstName}
-                  {record.student.groupName && ` (${record.student.groupName})`}
+                  {record.student
+                    ? `${record.student.lastName} ${record.student.firstName}${
+                        record.student.groupName ? ` (${record.student.groupName})` : ''
+                      }`
+                    : '—'}
                 </td>
                 <td>{record.borrowDate || '—'}</td>
                 <td>{record.returnDate || '—'}</td>

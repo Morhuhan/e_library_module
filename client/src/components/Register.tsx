@@ -6,33 +6,39 @@ import { useNavigate } from 'react-router-dom';
 
 const Register: React.FC = () => {
   const [username, setUsername] = useState('');
+  // Локально храните "password", но отправлять нужно "pass"
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     try {
-      // Сначала регистрируем пользователя
-      await httpClient.post('/users/register', { username, password });
+      // 1) Регистрируем пользователя, сервер ожидает pass
+      await httpClient.post('/users/register', {
+        username,
+        pass: password,
+      });
 
-      // Затем логиним его
-      const response = await httpClient.post('/auth/login', { username, password });
-      // Сервер вернёт { message, username }, плюс установит cookie
+      // 2) Сразу логиним
+      const response = await httpClient.post('/auth/login', {
+        username,
+        pass: password,
+      });
 
-      // Сохраняем имя пользователя
+      // Сервер вернёт { message, username } + установит cookie
       localStorage.setItem('username', response.data.username);
 
-      // Очищаем поля
+      // Очищаем поля и уведомляем
       setUsername('');
       setPassword('');
-
-      // Уведомление
       toast.success('Регистрация и вход прошли успешно!');
 
-      // Переход на главную страницу (или куда хотите)
+      // Переход на главную
       navigate('/');
     } catch (error) {
       console.error('Ошибка при регистрации:', error);
+      // Ошибки ловятся и показываются в интерцепторе
     }
   };
 

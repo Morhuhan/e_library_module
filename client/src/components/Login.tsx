@@ -6,20 +6,30 @@ import { toast } from 'react-toastify';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
+  // Локальное состояние всё ещё называется password
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     try {
-      const response = await httpClient.post('/auth/login', { username, password });
+      // ВАЖНО: сервер ждёт pass, а не password
+      const response = await httpClient.post('/auth/login', {
+        username,
+        pass: password,
+      });
+
+      // Сервер (auth.controller) возвращает { message, username }
       localStorage.setItem('username', response.data.username);
       toast.success('Успешный вход в систему!');
+
       setUsername('');
       setPassword('');
       navigate('/');
     } catch (error: any) {
       console.error('Ошибка при авторизации:', error);
+      // Тосты об ошибках обрабатываются интерцептором (httpClient)
     }
   };
 

@@ -1,78 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import httpClient from '../utils/httpClient.tsx';
-
-interface BorrowRecord {
-  id: number;
-  borrowDate: string | null;
-  returnDate: string | null;
-}
-
-interface BookCopy {
-  id: number;
-  inventoryNumber: string;
-  borrowRecords?: BorrowRecord[];
-}
-
-interface Book {
-  id: number;
-  title: string;
-  author: string;
-  publishedYear: number;
-  isbn?: string;
-  // localNumber?: string; // Если вы больше не храните localNumber в Book, уберите
-  bookCopies?: BookCopy[];
-}
+import { BookCopy } from '../interfaces.ts';
 
 const Lists: React.FC = () => {
   const [searchValue, setSearchValue] = useState('');
   const [onlyAvailable, setOnlyAvailable] = useState(false);
-  const [books, setBooks] = useState<Book[]>([]);
+  const [copies, setCopies] = useState<BookCopy[]>([]);
 
-  // Загружаем список книг (каждая книга содержит массив bookCopies)
-  const fetchBooks = async () => {
+  // Функция загрузки экземпляров:
+  const fetchCopies = async () => {
     try {
-      const response = await httpClient.get<Book[]>('/books');
-      setBooks(response.data);
+      // Запрашиваем /book-copies
+      const response = await httpClient.get<BookCopy[]>('/book-copies');
+      setCopies(response.data);
     } catch (error) {
-      console.error('Ошибка при получении списка книг:', error);
+      console.error('Ошибка при получении списка экземпляров:', error);
     }
   };
 
   useEffect(() => {
-    fetchBooks();
+    fetchCopies();
   }, []);
 
-  // Проверяем, доступна ли хотя бы одна копия
-  const hasAvailableCopy = (book: Book) => {
-    if (!book.bookCopies || book.bookCopies.length === 0) {
-      return false; // Нет экземпляров, значит 0 в наличии
+  // Проверяем, доступен ли экземпляр (нет незакрытой записи borrowRecord)
+  const isAvailable = (copy: BookCopy) => {
+    if (!copy.borrowRecords || copy.borrowRecords.length === 0) {
+      // Если нет записей — никогда не выдавался
+      return true;
     }
-    // Если у хотя бы одного экземпляра НЕТ активного borrowRecord (без returnDate), значит он доступен
-    return book.bookCopies.some((copy) => {
-      // Нет записей — значит никогда не выдавали, следовательно, доступна
-      if (!copy.borrowRecords || copy.borrowRecords.length === 0) {
-        return true;
-      }
-      // Проверяем, есть ли незакрытая выдача (returnDate == null)
-      const isCurrentlyBorrowed = copy.borrowRecords.some(
-        (record) => !record.returnDate
-      );
-      return !isCurrentlyBorrowed; // если ни одной незакрытой выдачи нет, копия доступна
-    });
+    // Проверяем, нет ли записи с returnDate == null
+    const hasOpenBorrow = copy.borrowRecords.some(
+      (record) => record.returnDate === null
+    );
+    return !hasOpenBorrow;
   };
 
-  // Фильтр по названию + флаг &laquo;только доступные&raquo;
-  const filteredBooks = books.filter((book) => {
-    const matchesTitle = book.title
+  // Фильтруем по названию книги + "только доступные"
+  const filteredCopies = copies.filter((copy) => {
+    const matchesTitle = copy.book.title
       .toLowerCase()
       .includes(searchValue.toLowerCase());
-    const matchesAvailability = onlyAvailable ? hasAvailableCopy(book) : true;
+    const matchesAvailability = onlyAvailable ? isAvailable(copy) : true;
     return matchesTitle && matchesAvailability;
   });
 
   return (
     <div className="lists-container">
-      <h2>Список книг</h2>
+      <h2>Список экземпляров</h2>
 
       <div className="search-container">
         <input
@@ -98,31 +72,63 @@ const Lists: React.FC = () => {
       <table className="books-table">
         <thead>
           <tr>
+            {/* Поля из таблицы Book */}
             <th>Название</th>
             <th>Автор</th>
             <th>Год</th>
             <th>ISBN</th>
+            <th>Издательство</th>
+            <th>Категория</th>
+            <th>Страницы</th>
+            <th>УДК</th>
+            <th>ГРНТИ</th>
+
+            {/* Поля из таблицы BookCopy */}
+            <th>Инв. номер</th>
+            <th>Дата поступления</th>
+            <th>Дата списания</th>
+            <th>Акт списания</th>
+            <th>Цена</th>
+            <th>Местоположение</th>
+
+            {/* Статус */}
             <th>Статус</th>
           </tr>
         </thead>
         <tbody>
-          {filteredBooks.length > 0 ? (
-            filteredBooks.map((book) => {
-              const available = hasAvailableCopy(book);
+          {filteredCopies.length > 0 ? (
+            filteredCopies.map((copy) => {
+              const available = isAvailable(copy);
               return (
-                <tr key={book.id}>
-                  <td>{book.title}</td>
-                  <td>{book.author}</td>
-                  <td>{book.publishedYear}</td>
-                  <td>{book.isbn || '—'}</td>
-                  <td>{available ? 'Есть доступные экземпляры' : 'Все выданы'}</td>
+                <tr key={copy.id}>
+                  {/* Данные книги */}
+                  <td>{copy.book.title}</td>
+                  <td>{copy.book.author}</td>
+                  <td>{copy.book.publishedYear}</td>
+                  <td>{copy.book.isbn || '—'}</td>
+                  <td>{copy.book.publisher || '—'}</td>
+                  <td>{copy.book.category || '—'}</td>
+                  <td>{copy.book.pages ?? '—'}</td>
+                  <td>{copy.book.udc || '—'}</td>
+                  <td>{copy.book.grnti || '—'}</td>
+
+                  {/* Данные экземпляра */}
+                  <td>{copy.inventoryNumber}</td>
+                  <td>{copy.acquisitionDate || '—'}</td>
+                  <td>{copy.disposalDate || '—'}</td>
+                  <td>{copy.disposalActNumber || '—'}</td>
+                  <td>{copy.price != null ? copy.price : '—'}</td>
+                  <td>{copy.location || '—'}</td>
+
+                  {/* Статус (в наличии / выдана) */}
+                  <td>{available ? 'В наличии' : 'Выдана'}</td>
                 </tr>
               );
             })
           ) : (
             <tr>
-              <td colSpan={5} className="no-books">
-                Нет книг, удовлетворяющих условиям поиска
+              <td colSpan={16} className="no-books">
+                Нет экземпляров, удовлетворяющих условиям поиска
               </td>
             </tr>
           )}

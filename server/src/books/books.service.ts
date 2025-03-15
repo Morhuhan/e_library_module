@@ -18,13 +18,18 @@ export class BooksService {
     });
   }
 
-  // Получить книгу по ID (и список её экземпляров)
-  findOneWithRelations(id: number): Promise<Book> {
-    return this.bookRepository.findOne({
-      where: { id },
-      relations: ['bookCopies'],
-    });
-  }
+  // Получить книгу по ID (и список её экземпляров)// books.service.ts
+async findOneWithRelations(id: number): Promise<Book> {
+  return this.bookRepository.findOneOrFail({
+    where: { id },
+    relations: [
+      'bookCopies',
+      'bookCopies.borrowRecords',
+      'bookCopies.borrowRecords.issuedByUser',
+      'bookCopies.borrowRecords.acceptedByUser',
+    ],
+  });
+}
 
   // Создать (пример)
   async create(data: Partial<Book>): Promise<Book> {
