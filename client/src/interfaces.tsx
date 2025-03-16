@@ -6,12 +6,11 @@ export interface User {
   pass?: string;
 }
 
-export interface Student {
+export interface Person {
   id: number;
   firstName: string;
   lastName: string;
-  middleName?: string | null;
-  groupName?: string | null;
+  middleName?: string;  
 }
 
 export interface Book {
@@ -44,7 +43,7 @@ export interface BorrowRecord {
   id: number;
   borrowDate: string | null; 
   returnDate: string | null; 
-  student?: Student;
+  person?: Person | null;
   issuedByUser?: User;
   acceptedByUser?: User | null;
   bookCopy: BookCopy;

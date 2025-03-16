@@ -3,12 +3,18 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BorrowRecord } from './borrow-record.entity';
 import { BorrowRecordsService } from './borrow-records.service';
 import { BorrowRecordsController } from './borrow-records.controller';
-import { Student } from 'src/students/student.entity';
 import { User } from 'src/users/user.entity';
+import { BookCopy } from 'src/book-copies/book-copy.entity';
+import { Person } from 'src/persons/person.entity'; // <-- новая сущность
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([BorrowRecord, Student, User]) 
+    TypeOrmModule.forFeature([
+      BorrowRecord,
+      User,
+      BookCopy,
+      Person, 
+    ]),
   ],
   providers: [BorrowRecordsService],
   controllers: [BorrowRecordsController],

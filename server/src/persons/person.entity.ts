@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
-@Entity('student') // название таблицы
-export class Student {
+@Entity('person')
+export class Person {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -12,8 +12,5 @@ export class Student {
   lastName: string;
 
   @Column({ name: 'middle_name', nullable: true })
-  middleName: string | null;
-
-  @Column({ name: 'group_name', nullable: true })
-  groupName: string | null;
+  middleName?: string;
 }

@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import httpClient from '../utils/httpClient.tsx';
-import { BorrowRecord } from '../interfaces.ts';
+import { BorrowRecord } from '../interfaces.tsx';
 
 const BorrowRecordsList: React.FC = () => {
   const [borrowRecords, setBorrowRecords] = useState<BorrowRecord[]>([]);
   const [searchValue, setSearchValue] = useState('');
   const [onlyDebts, setOnlyDebts] = useState(false);
 
-  // Загружаем все записи о выдаче
+  // Загружаем все записи
   const fetchBorrowRecords = async () => {
     try {
       const response = await httpClient.get<BorrowRecord[]>('/borrow-records');
@@ -21,19 +21,19 @@ const BorrowRecordsList: React.FC = () => {
     fetchBorrowRecords();
   }, []);
 
-  // Проверяем, возвращена ли книга (returnDate != null)
+  // Проверяем, возвращена ли книга
   const isReturned = (record: BorrowRecord) => {
     return record.returnDate !== null;
   };
 
-  // Фильтр по фамилии (части фамилии) + только долги
+  // Фильтрация по фамилии + проверка только невозвращённых
   const filteredRecords = borrowRecords.filter((record) => {
-    // может случиться, что record.student = undefined;
-    // в таком случае подстрахуемся
-    const lastName = record.student?.lastName?.toLowerCase() || '';
-    const matchesStudentName = lastName.includes(searchValue.toLowerCase());
+    // Учитываем, что record.person может быть undefined или null
+    const lastName = record.person?.lastName?.toLowerCase() || '';
+    const matchesNameFilter = lastName.includes(searchValue.toLowerCase());
     const matchesDebtFilter = onlyDebts ? !isReturned(record) : true;
-    return matchesStudentName && matchesDebtFilter;
+
+    return matchesNameFilter && matchesDebtFilter;
   });
 
   return (
@@ -43,7 +43,7 @@ const BorrowRecordsList: React.FC = () => {
       <div className="search-container">
         <input
           type="text"
-          placeholder="Поиск по фамилии студента..."
+          placeholder="Поиск по фамилии..."
           value={searchValue}
           onChange={(e) => setSearchValue(e.target.value)}
           className="search-input"
@@ -67,7 +67,7 @@ const BorrowRecordsList: React.FC = () => {
             <th>ID записи</th>
             <th>Название книги</th>
             <th>Инв. номер</th>
-            <th>Студент</th>
+            <th>Получатель</th>
             <th>Дата выдачи</th>
             <th>Дата возврата</th>
             <th>Кто выдал</th>
@@ -82,11 +82,16 @@ const BorrowRecordsList: React.FC = () => {
                 <td>{record.bookCopy.book.title}</td>
                 <td>{record.bookCopy.inventoryNumber}</td>
                 <td>
-                  {record.student
-                    ? `${record.student.lastName} ${record.student.firstName}${
-                        record.student.groupName ? ` (${record.student.groupName})` : ''
+                  {record.person
+                    ? `${record.person.lastName} ${record.person.firstName}${
+                        record.person.middleName ? ` ${record.person.middleName}` : ''
                       }`
                     : '—'}
+                  {/* 
+                      Если у Person есть groupName и вы хотите выводить, 
+                      можете добавить:
+                      record.person.groupName ? ` (${record.person.groupName})` : ''
+                  */}
                 </td>
                 <td>{record.borrowDate || '—'}</td>
                 <td>{record.returnDate || '—'}</td>

@@ -12,16 +12,15 @@ export class BorrowRecordsService {
 
   // Создание записи о выдаче книги
   async createBorrowRecord(
-    bookCopyId: number, // вместо bookId
-    studentId: number,
+    bookCopyId: number,
+    personId: number,          // <-- заменили studentId на personId
     issuedByUserId: number,
   ): Promise<BorrowRecord> {
     const newRecord = this.borrowRecordRepository.create({
-      // вместо book: { id: bookId }:
       bookCopy: { id: bookCopyId } as any,
-      student: { id: studentId } as any,
+      person: { id: personId } as any,    // <-- ссылка на Person
       issuedByUser: { id: issuedByUserId } as any,
-      borrowDate: new Date().toISOString().split('T')[0], // упрощённо
+      borrowDate: new Date().toISOString().split('T')[0],
       returnDate: null,
     });
 
@@ -32,7 +31,7 @@ export class BorrowRecordsService {
   async returnBook(recordId: number, acceptedByUserId: number): Promise<BorrowRecord> {
     const record = await this.borrowRecordRepository.findOne({
       where: { id: recordId },
-      relations: ['bookCopy', 'student', 'issuedByUser', 'acceptedByUser'],
+      relations: ['bookCopy', 'person', 'issuedByUser', 'acceptedByUser'],
     });
     if (!record) {
       throw new Error('Запись о выдаче не найдена');
@@ -47,7 +46,7 @@ export class BorrowRecordsService {
   // Все записи
   findAll(): Promise<BorrowRecord[]> {
     return this.borrowRecordRepository.find({
-      relations: ['bookCopy', 'bookCopy.book', 'student', 'issuedByUser', 'acceptedByUser'],
+      relations: ['bookCopy', 'bookCopy.book', 'person', 'issuedByUser', 'acceptedByUser'],
     });
   }
 
@@ -55,7 +54,7 @@ export class BorrowRecordsService {
   findOne(id: number): Promise<BorrowRecord> {
     return this.borrowRecordRepository.findOne({
       where: { id },
-      relations: ['bookCopy', 'bookCopy.book', 'student', 'issuedByUser', 'acceptedByUser'],
+      relations: ['bookCopy', 'bookCopy.book', 'person', 'issuedByUser', 'acceptedByUser'],
     });
   }
 }

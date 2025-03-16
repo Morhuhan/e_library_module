@@ -23,10 +23,8 @@ async findOneWithRelations(id: number): Promise<Book> {
   return this.bookRepository.findOneOrFail({
     where: { id },
     relations: [
-      'bookCopies',
-      'bookCopies.borrowRecords',
-      'bookCopies.borrowRecords.issuedByUser',
-      'bookCopies.borrowRecords.acceptedByUser',
+      'bookCopies',                 
+      'bookCopies.borrowRecords',   
     ],
   });
 }
@@ -52,7 +50,10 @@ async findOneWithRelations(id: number): Promise<Book> {
   async findOneByIsbn(isbn: string): Promise<Book | null> {
     return this.bookRepository.findOne({
       where: { isbn },
-      relations: ['bookCopies'],
+      relations: [
+        'bookCopies', 
+        'bookCopies.borrowRecords',
+      ],
     });
   }
 }
