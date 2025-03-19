@@ -29,14 +29,14 @@ export class AuthController {
 
     // Получаем время жизни токена из .env и преобразуем его в миллисекунды
     const jwtExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN');
-    const maxAge = ms(jwtExpiresIn); // Например, "24h" -> 86400000
+    const maxAge = ms(jwtExpiresIn); 
 
     // Устанавливаем http-only cookie с токеном
     res.cookie('access_token', access_token, {
       httpOnly: true,
-      secure: true, 
+      secure: false, 
       sameSite: 'lax',
-      maxAge, // время жизни cookie в миллисекундах
+      maxAge,
     });
 
     // Возвращаем информацию о пользователе
@@ -57,6 +57,6 @@ export class AuthController {
   @Get('me')
   @UseGuards(AuthGuard('jwt'))
   getCurrentUser(@Request() req) {
-    return req.user; // Должен быть доступен пользователь, если guard прошел успешно
+    return req.user; 
   }
 }

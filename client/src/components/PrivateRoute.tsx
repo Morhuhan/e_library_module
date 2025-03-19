@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import httpClient from '../utils/httpClient.tsx';
+import httpClient from '../utils/httpsClient.tsx';
 
 const PrivateRoute: React.FC = () => {
   const [isAuth, setIsAuth] = useState<boolean | null>(null);

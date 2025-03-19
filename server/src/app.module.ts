@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
@@ -13,7 +16,7 @@ import { PersonsModule } from './persons/persons.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true, 
+      isGlobal: true,
     }),
     TypeOrmModule.forRoot({
       type: 'postgres',
@@ -25,6 +28,14 @@ import { PersonsModule } from './persons/persons.module';
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       synchronize: false,
     }),
+
+    // ВАЖНО: ServeStaticModule раздаёт React-сборку
+    // exclude: ['/api*'] — чтобы не перехватывать запросы, идущие на /api
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', '..', 'client', 'build'),
+      exclude: ['/api*'],
+    }),
+
     UsersModule,
     AuthModule,
     BooksModule,

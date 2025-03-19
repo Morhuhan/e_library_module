@@ -1,7 +1,7 @@
 // src/components/Home.tsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import httpClient from '../utils/httpClient.tsx';
+import httpClient from '../utils/httpsClient.tsx';
 
 function Home() {
   const navigate = useNavigate();

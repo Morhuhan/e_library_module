@@ -1,6 +1,6 @@
 // src/components/Register.tsx
 import React, { useState } from 'react';
-import httpClient from '../utils/httpClient.tsx';
+import httpClient from '../utils/httpsClient.tsx';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 

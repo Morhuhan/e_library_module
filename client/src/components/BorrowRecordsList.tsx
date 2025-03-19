@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import httpClient from '../utils/httpClient.tsx';
+import httpClient from '../utils/httpsClient.tsx';
 import { BorrowRecord } from '../interfaces.tsx';
 
 const BorrowRecordsList: React.FC = () => {
