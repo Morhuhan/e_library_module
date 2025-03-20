@@ -13,12 +13,12 @@ export class BorrowRecordsService {
   // Создание записи о выдаче книги
   async createBorrowRecord(
     bookCopyId: number,
-    personId: number,          // <-- заменили studentId на personId
+    personId: number,    
     issuedByUserId: number,
   ): Promise<BorrowRecord> {
     const newRecord = this.borrowRecordRepository.create({
       bookCopy: { id: bookCopyId } as any,
-      person: { id: personId } as any,    // <-- ссылка на Person
+      person: { id: personId } as any,
       issuedByUser: { id: issuedByUserId } as any,
       borrowDate: new Date().toISOString().split('T')[0],
       returnDate: null,
@@ -43,7 +43,7 @@ export class BorrowRecordsService {
     return this.borrowRecordRepository.save(record);
   }
 
-  // Все записи
+  // Все записи (без пагинации)
   findAll(): Promise<BorrowRecord[]> {
     return this.borrowRecordRepository.find({
       relations: ['bookCopy', 'bookCopy.book', 'person', 'issuedByUser', 'acceptedByUser'],
@@ -56,5 +56,54 @@ export class BorrowRecordsService {
       where: { id },
       relations: ['bookCopy', 'bookCopy.book', 'person', 'issuedByUser', 'acceptedByUser'],
     });
+  }
+
+  // ========== ПАГИНАЦИЯ ========== 
+  // Пример сигнатуры: findAllPaginated(search: string, onlyDebts: boolean, page: number, limit: number)
+  async findAllPaginated(
+    search: string,
+    onlyDebts: boolean,
+    page: number,
+    limit: number,
+  ): Promise<{
+    data: BorrowRecord[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    // Строим QueryBuilder для гибкой фильтрации
+    const qb = this.borrowRecordRepository
+      .createQueryBuilder('record')
+      .leftJoinAndSelect('record.bookCopy', 'bookCopy')
+      .leftJoinAndSelect('bookCopy.book', 'book')
+      .leftJoinAndSelect('record.person', 'person')
+      .leftJoinAndSelect('record.issuedByUser', 'issuedByUser')
+      .leftJoinAndSelect('record.acceptedByUser', 'acceptedByUser');
+
+    // Если onlyDebts = true, показываем только те, у которых returnDate IS NULL
+    if (onlyDebts) {
+      qb.andWhere('record.returnDate IS NULL');
+    }
+
+    // Поиск (search) — например, по фамилии человека
+    if (search) {
+      // LOWER(person.lastName) LIKE :search
+      qb.andWhere('LOWER(person.lastName) LIKE :search', {
+        search: `%${search.toLowerCase()}%`,
+      });
+    }
+
+    // Пагинация
+    qb.skip((page - 1) * limit).take(limit);
+
+    // Выполняем запрос
+    const [data, total] = await qb.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 }

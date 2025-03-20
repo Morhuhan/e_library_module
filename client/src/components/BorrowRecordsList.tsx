@@ -2,43 +2,73 @@ import React, { useState, useEffect } from 'react';
 import httpClient from '../utils/httpsClient.tsx';
 import { BorrowRecord } from '../interfaces.tsx';
 
+// Предполагаем, что бэкенд возвращает { data, total, page, limit }
+interface PaginatedBorrowRecords {
+  data: BorrowRecord[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 const BorrowRecordsList: React.FC = () => {
   const [borrowRecords, setBorrowRecords] = useState<BorrowRecord[]>([]);
+
   const [searchValue, setSearchValue] = useState('');
   const [onlyDebts, setOnlyDebts] = useState(false);
 
-  // Загружаем все записи
-  const fetchBorrowRecords = async () => {
+  // Пагинация
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+
+  // Функция загрузки записей с учётом пагинации, фильтра и поиска
+  const fetchBorrowRecords = async (newPage = 1, newLimit = 10) => {
     try {
-      const response = await httpClient.get<BorrowRecord[]>('/borrow-records');
-      setBorrowRecords(response.data);
+      // Предполагаем, что есть эндпоинт GET /borrow-records/paginated
+      // который умеет принимать search, onlyDebts, page, limit
+      const response = await httpClient.get<PaginatedBorrowRecords>(
+        '/borrow-records/paginated',
+        {
+          params: {
+            search: searchValue,
+            onlyDebts: onlyDebts ? 'true' : 'false',
+            page: newPage,
+            limit: newLimit,
+          },
+        }
+      );
+      // Обновляем стейты
+      setBorrowRecords(response.data.data);
+      setTotal(response.data.total);
+      setPage(response.data.page);
+      setLimit(response.data.limit);
     } catch (error) {
-      console.error('Ошибка при получении списка записей о выдаче:', error);
+      console.error('Ошибка при получении записей о выдаче:', error);
     }
   };
 
+  // При изменении page/limit — подгружаем
   useEffect(() => {
-    fetchBorrowRecords();
-  }, []);
+    fetchBorrowRecords(page, limit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, limit]);
 
-  // Проверяем, возвращена ли книга
-  const isReturned = (record: BorrowRecord) => {
-    return record.returnDate !== null;
-  };
+  // При изменении поисковой строки / флажка "только невозвращённые" — сбрасываем страницу и грузим
+  useEffect(() => {
+    setPage(1);
+    fetchBorrowRecords(1, limit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchValue, onlyDebts]);
 
-  // Фильтрация по фамилии + проверка только невозвращённых
-  const filteredRecords = borrowRecords.filter((record) => {
-    // Учитываем, что record.person может быть undefined или null
-    const lastName = record.person?.lastName?.toLowerCase() || '';
-    const matchesNameFilter = lastName.includes(searchValue.toLowerCase());
-    const matchesDebtFilter = onlyDebts ? !isReturned(record) : true;
+  // Вычисляем общее число страниц
+  const totalPages = Math.ceil(total / limit);
 
-    return matchesNameFilter && matchesDebtFilter;
-  });
+  // Вспомогательная функция
+  const isReturned = (record: BorrowRecord) => record.returnDate !== null;
 
   return (
     <div className="borrow-records-container">
-      <h2>Записи о выдаче книг</h2>
+      <h2>Записи о выдаче книг (пагинация)</h2>
 
       <div className="search-container">
         <input
@@ -61,13 +91,14 @@ const BorrowRecordsList: React.FC = () => {
         </label>
       </div>
 
+      {/* Таблица записей */}
       <table className="borrow-records-table">
         <thead>
           <tr>
             <th>ID записи</th>
-            <th>Название книги</th>
-            <th>Инв. номер</th>
-            <th>Получатель</th>
+            <th>Название (Book.title)</th>
+            <th>Экземпляр (BookCopy.copyInfo)</th>
+            <th>Получатель (Person)</th>
             <th>Дата выдачи</th>
             <th>Дата возврата</th>
             <th>Кто выдал</th>
@@ -75,38 +106,39 @@ const BorrowRecordsList: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {filteredRecords.length > 0 ? (
-            filteredRecords.map((record) => (
-              <tr key={record.id}>
-                <td>{record.id}</td>
-                <td>{record.bookCopy.book.title}</td>
-                <td>{record.bookCopy.inventoryNumber}</td>
-                <td>
-                  {record.person
-                    ? `${record.person.lastName} ${record.person.firstName}${
-                        record.person.middleName ? ` ${record.person.middleName}` : ''
-                      }`
-                    : '—'}
-                  {/* 
-                      Если у Person есть groupName и вы хотите выводить, 
-                      можете добавить:
-                      record.person.groupName ? ` (${record.person.groupName})` : ''
-                  */}
-                </td>
-                <td>{record.borrowDate || '—'}</td>
-                <td>{record.returnDate || '—'}</td>
-                <td>
-                  {record.issuedByUser?.username
-                    ? record.issuedByUser.username
-                    : record.issuedByUser?.id || '—'}
-                </td>
-                <td>
-                  {record.acceptedByUser?.username
-                    ? record.acceptedByUser.username
-                    : record.acceptedByUser?.id || '—'}
-                </td>
-              </tr>
-            ))
+          {borrowRecords.length > 0 ? (
+            borrowRecords.map((record) => {
+              const bookTitle = record.bookCopy?.book?.title || '—';
+              const copyInfo =
+                record.bookCopy?.copyInfo || `Экз. #${record.bookCopy?.id}`;
+
+              // Person
+              const person = record.person
+                ? `${record.person.lastName} ${record.person.firstName}${
+                    record.person.middleName ? ` ${record.person.middleName}` : ''
+                  }`
+                : '—';
+
+              const issuedUser =
+                record.issuedByUser?.username ||
+                `ID ${record.issuedByUser?.id || '—'}`;
+              const acceptedUser =
+                record.acceptedByUser?.username ||
+                `ID ${record.acceptedByUser?.id || '—'}`;
+
+              return (
+                <tr key={record.id}>
+                  <td>{record.id}</td>
+                  <td>{bookTitle}</td>
+                  <td>{copyInfo}</td>
+                  <td>{person}</td>
+                  <td>{record.borrowDate || '—'}</td>
+                  <td>{record.returnDate || '—'}</td>
+                  <td>{issuedUser}</td>
+                  <td>{isReturned(record) ? acceptedUser : '—'}</td>
+                </tr>
+              );
+            })
           ) : (
             <tr>
               <td colSpan={8} className="no-records">
@@ -116,6 +148,39 @@ const BorrowRecordsList: React.FC = () => {
           )}
         </tbody>
       </table>
+
+      {/* Пагинация */}
+      <div className="pagination-controls">
+        <button
+          onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+          disabled={page <= 1}
+        >
+          &laquo; Предыдущая
+        </button>
+        <span style={{ margin: '0 8px' }}>
+          Страница {page} из {totalPages || 1}
+        </span>
+        <button
+          onClick={() =>
+            setPage((prev) => (prev < totalPages ? prev + 1 : prev))
+          }
+          disabled={page >= totalPages || totalPages === 0}
+        >
+          Следующая &raquo;
+        </button>
+        <select
+          value={limit}
+          onChange={(e) => {
+            const newLimit = parseInt(e.target.value, 10) || 10;
+            setLimit(newLimit);
+            setPage(1);
+          }}
+        >
+          <option value="5">5 на странице</option>
+          <option value="10">10 на странице</option>
+          <option value="20">20 на странице</option>
+        </select>
+      </div>
     </div>
   );
 };

@@ -8,8 +8,9 @@ type ActionType = 'borrow' | 'return';
 const BorrowReturn: React.FC = () => {
   const [actionType, setActionType] = useState<ActionType>('borrow');
 
-  // Поле для ввода ISBN
-  const [bookIsbnQuery, setBookIsbnQuery] = useState('');
+  // Поле для ввода "локального индекса" или другого идентификатора
+  const [bookLocalIndexQuery, setBookLocalIndexQuery] = useState('');
+
   // Найденная книга
   const [foundBook, setFoundBook] = useState<Book | null>(null);
   // Выбранный экземпляр книги
@@ -19,7 +20,7 @@ const BorrowReturn: React.FC = () => {
   const [persons, setPersons] = useState<Person[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
 
-  // Получение списка Person (студентов/преподавателей) при монтировании
+  // Получение списка Person при монтировании
   useEffect(() => {
     const fetchPersons = async () => {
       try {
@@ -32,30 +33,32 @@ const BorrowReturn: React.FC = () => {
     fetchPersons();
   }, []);
 
-  // Сброс текущего состояния
+  // Сброс состояния
   const resetAllStates = () => {
     setFoundBook(null);
     setSelectedCopyId(null);
-    setBookIsbnQuery('');
+    setBookLocalIndexQuery('');
     setSelectedPersonId(null);
   };
 
-  // Переключение типа действия
+  // Переключение типа действия (выдать/вернуть) — сбрасываем поля
   const handleActionTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setActionType(e.target.value as ActionType);
     resetAllStates();
   };
 
-  // Поиск книги по ISBN
+  // Поиск книги по localIndex
   const handleFindBook = async () => {
-    if (!bookIsbnQuery.trim()) {
-      toast.error('Введите ISBN для поиска книги');
+    if (!bookLocalIndexQuery.trim()) {
+      toast.error('Введите локальный индекс для поиска книги');
       return;
     }
     try {
-      const response = await httpClient.get<Book>(
-        `/books/find?searchType=isbn&query=${encodeURIComponent(bookIsbnQuery)}`
-      );
+      // ВАЖНО: encodeURIComponent(bookLocalIndexQuery)
+      const url = `/books/find?searchType=local_index&query=${encodeURIComponent(
+        bookLocalIndexQuery
+      )}`;
+      const response = await httpClient.get<Book>(url);
       setFoundBook(response.data);
       setSelectedCopyId(null);
     } catch (error) {
@@ -65,7 +68,7 @@ const BorrowReturn: React.FC = () => {
     }
   };
 
-  // Выбор экземпляра из найденной книги
+  // Выбор экземпляра книги из списка
   const handleCopySelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     setSelectedCopyId(val ? Number(val) : null);
@@ -77,17 +80,17 @@ const BorrowReturn: React.FC = () => {
     setSelectedPersonId(val ? Number(val) : null);
   };
 
-  // Функция повторного обновления (re-fetch) книги после операции
+  // Повторный запрос книги, чтобы обновить состояние (borrowRecords)
   const refetchBook = async () => {
-    if (!bookIsbnQuery) return;
+    if (!bookLocalIndexQuery) return;
     try {
-      const response = await httpClient.get<Book>(
-        `/books/find?searchType=isbn&query=${encodeURIComponent(bookIsbnQuery)}`
-      );
+      const url = `/books/find?searchType=local_index&query=${encodeURIComponent(
+        bookLocalIndexQuery
+      )}`;
+      const response = await httpClient.get<Book>(url);
       setFoundBook(response.data);
     } catch (error) {
-      console.error('Ошибка при обновлении данных книги:', error);
-      // Здесь не обязательно показывать toast, но можно
+      console.error('Ошибка при обновлении данных о книге:', error);
     }
   };
 
@@ -107,16 +110,13 @@ const BorrowReturn: React.FC = () => {
         personId: selectedPersonId,
       });
       toast.success('Книга успешно выдана');
-      // 1) Можем оставить "resetAllStates()", но тогда пользователь всё забудет
-      // 2) Или перезапросить книгу, чтобы увидеть обновлённый статус экземпляра
-      // Выберем перезапрос, чтобы пользователь остался на этой же книге
+      // Перезапрашиваем книгу, чтобы увидеть обновлённый статус
       await refetchBook();
       setSelectedCopyId(null);
       setSelectedPersonId(null);
     } catch (error: any) {
       console.error('Ошибка при выдаче книги:', error);
       if (error.response?.status === 409) {
-        // Например, если на бэке вернули Conflict (duplicate key)
         toast.error('Этот экземпляр уже находится на руках!');
       } else {
         toast.error('Не удалось выдать книгу');
@@ -130,13 +130,13 @@ const BorrowReturn: React.FC = () => {
       toast.error('Сначала найдите книгу и выберите экземпляр');
       return;
     }
-    // Ищем экземпляр
+    // Находим экземпляр
     const copy = foundBook.bookCopies?.find((c) => c.id === selectedCopyId);
     if (!copy || !copy.borrowRecords) {
       toast.error('Нет записей о выдаче для этого экземпляра');
       return;
     }
-    // Находим активную запись
+    // Ищем активную (не возвращённую) запись
     const activeRecord = copy.borrowRecords.find((r) => !r.returnDate);
     if (!activeRecord) {
       toast.info('Этот экземпляр не находится на руках');
@@ -145,7 +145,7 @@ const BorrowReturn: React.FC = () => {
     try {
       await httpClient.patch(`/borrow-records/${activeRecord.id}/return`, {});
       toast.success('Книга успешно возвращена');
-      // Также перезапрашиваем данные
+      // Перезапрашиваем
       await refetchBook();
       setSelectedCopyId(null);
     } catch (error) {
@@ -154,17 +154,17 @@ const BorrowReturn: React.FC = () => {
     }
   };
 
-  // История выдач (все экземпляры) — если хотите отображать
+  // Можно показать всю историю выдач по книге (всех её экземплярах)
   const getAllBorrowRecords = (): BorrowRecord[] => {
     if (!foundBook?.bookCopies) return [];
-    return foundBook.bookCopies.flatMap((c) => c.borrowRecords ?? []);
+    return foundBook.bookCopies.flatMap((c) => c.borrowRecords || []);
   };
 
   return (
     <div className="borrow-return-container">
-      <h2>Выдача / Приём книг</h2>
+      <h2>Выдача / Возврат книг</h2>
 
-      {/* Выбор действия */}
+      {/* Тип действия */}
       <div className="form-group">
         <label>Действие:</label>
         <select value={actionType} onChange={handleActionTypeChange}>
@@ -173,25 +173,30 @@ const BorrowReturn: React.FC = () => {
         </select>
       </div>
 
-      {/* Поле ввода ISBN и поиск */}
+      {/* Поиск книги по localIndex */}
       <div className="form-group">
-        <label>ISBN книги:</label>
+        <label>Локальный индекс книги (или другой идентификатор):</label>
         <input
           type="text"
-          placeholder="Введите ISBN"
-          value={bookIsbnQuery}
-          onChange={(e) => setBookIsbnQuery(e.target.value)}
+          placeholder="Введите локальный индекс"
+          value={bookLocalIndexQuery}
+          onChange={(e) => setBookLocalIndexQuery(e.target.value)}
         />
         <button onClick={handleFindBook}>Найти книгу</button>
       </div>
 
+      {/* Найденная книга */}
       {foundBook && (
         <div className="book-info">
           <h4>Найдена книга:</h4>
           <p>
-            <strong>{foundBook.title}</strong> / {foundBook.author} ({foundBook.publishedYear})
+            <strong>{foundBook.title}</strong>{' '}
+            {foundBook.authors ? ` / ${foundBook.authors}` : ''}
+            {foundBook.bookType ? ` [${foundBook.bookType}]` : ''}
           </p>
-          <p>ISBN: {foundBook.isbn || '(нет)'}</p>
+          <p>УДК: {foundBook.udc || '(нет)'}</p>
+          <p>ББК: {foundBook.bbk || '(нет)'}</p>
+          <p>Локальный индекс: {foundBook.localIndex || '(нет)'}</p>
 
           <h5>Экземпляры:</h5>
           {foundBook.bookCopies?.length ? (
@@ -201,11 +206,16 @@ const BorrowReturn: React.FC = () => {
                   const borrowed = copy.borrowRecords?.some((r) => !r.returnDate);
                   return (
                     <li key={copy.id}>
-                      {copy.inventoryNumber} {borrowed ? '(выдан)' : '(свободен)'}
+                      {copy.copyInfo
+                        ? copy.copyInfo
+                        : `Экземпляр #${copy.id}`}
+                      {' '}
+                      {borrowed ? '(выдан)' : '(свободен)'}
                     </li>
                   );
                 })}
               </ul>
+
               <div className="form-group">
                 <label>Выберите экземпляр:</label>
                 <select
@@ -217,22 +227,26 @@ const BorrowReturn: React.FC = () => {
                     const isBorrowed = copy.borrowRecords?.some((r) => !r.returnDate);
                     return (
                       <option key={copy.id} value={copy.id}>
-                        {copy.inventoryNumber} {isBorrowed ? '(выдан)' : '(свободен)'}
+                        {copy.copyInfo
+                          ? copy.copyInfo
+                          : `Экземпляр #${copy.id}`}
+                        {' '}
+                        {isBorrowed ? '(выдан)' : '(свободен)'}
                       </option>
                     );
                   })}
                 </select>
               </div>
 
-              <h5>История выдач (все экземпляры):</h5>
+              <h5>История выдач (по всем экземплярам):</h5>
               {getAllBorrowRecords().length > 0 ? (
                 <ul>
                   {getAllBorrowRecords().map((record) => (
                     <li key={record.id}>
-                      Запись #{record.id}: выдан {record.borrowDate || '?'};{' '}
-                      {record.returnDate ? `вернули ${record.returnDate}` : 'ещё не вернули'};{' '}
-                      {record.issuedByUser && `выдал: ${record.issuedByUser.username}`}
-                      {record.acceptedByUser && `; принял: ${record.acceptedByUser.username}`}
+                      Запись #{record.id}: выдана {record.borrowDate || '?'}
+                      {record.returnDate
+                        ? `; вернули ${record.returnDate}`
+                        : '; ещё не вернули'}
                     </li>
                   ))}
                 </ul>
@@ -246,7 +260,7 @@ const BorrowReturn: React.FC = () => {
         </div>
       )}
 
-      {/* Блок выбора получателя, если выдаём книгу */}
+      {/* Блок выбора человека (только для выдачи) */}
       {actionType === 'borrow' && (
         <div className="form-group">
           <label>Кому выдаём:</label>
@@ -265,6 +279,7 @@ const BorrowReturn: React.FC = () => {
         </div>
       )}
 
+      {/* Кнопки действий */}
       <div className="form-group">
         {actionType === 'borrow' && (
           <button onClick={handleBorrow}>Выдать книгу (экземпляр)</button>

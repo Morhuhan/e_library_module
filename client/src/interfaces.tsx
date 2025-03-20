@@ -15,29 +15,27 @@ export interface Person {
 
 export interface Book {
   id: number;
-  title: string;
-  author: string;
-  publishedYear: number;
-  udc?: string | null;
-  grnti?: string | null;
-  isbn?: string | null;
-  publisher?: string | null;
-  category?: string | null;
-  pages?: number | null;
+  title: string | null;
+  bookType: string | null;  
+  edit: string | null;
+  editionStatement: string | null;
+  pubInfo: string | null;
+  physDesc: string | null;
+  series: string | null;
+  udc: string | null;
+  bbk: string | null;
+  localIndex: string | null;
+  authors: string | null;
   bookCopies?: BookCopy[];
 }
 
 export interface BookCopy {
   id: number;
-  inventoryNumber: string;
-  acquisitionDate?: string | null; 
-  disposalDate?: string | null;    
-  disposalActNumber?: string | null;
-  price?: number | null;
-  location?: string | null;
+  copyInfo: string | null;
   book: Book;
   borrowRecords?: BorrowRecord[];
 }
+
 
 export interface BorrowRecord {
   id: number;
