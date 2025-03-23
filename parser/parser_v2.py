@@ -67,8 +67,6 @@ def parse_irbis_file(infile: str = 'irbis_data.txt', outfile: str = 'inserts.sql
         lines = f.readlines()
 
     with open(outfile, 'w', encoding='utf-8') as sql_out:
-        # При желании можно оставить комментарий с CREATE TABLE,
-        # но само создание здесь не выполняем:
         sql_out.write("-- Пример (создать таблицы вручную):\n")
         sql_out.write("-- CREATE TABLE book (\n")
         sql_out.write("--     id SERIAL PRIMARY KEY,\n")

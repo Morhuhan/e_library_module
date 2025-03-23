@@ -1,12 +1,10 @@
-// src/components/Login.tsx
 import React, { useState } from 'react';
-import httpClient from '../utils/httpsClient.tsx';
 import { useNavigate } from 'react-router-dom';
+import httpClient from '../utils/httpsClient.tsx';
 import { toast } from 'react-toastify';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
-  // Локальное состояние всё ещё называется password
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
@@ -14,41 +12,23 @@ const Login: React.FC = () => {
     e.preventDefault();
 
     try {
-      // ВАЖНО: сервер ждёт pass, а не password
-      const response = await httpClient.post('/auth/login', {
-        username,
-        pass: password,
-      });
-
-      // Сервер (auth.controller) возвращает { message, username }
+      const response = await httpClient.post('/auth/login', { username, pass: password });
       localStorage.setItem('username', response.data.username);
-      toast.success('Успешный вход в систему!');
 
+      toast.success('Успешный вход в систему!');
       setUsername('');
       setPassword('');
       navigate('/');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Ошибка при авторизации:', error);
-      // Тосты об ошибках обрабатываются интерцептором (httpClient)
     }
   };
 
   return (
     <form onSubmit={handleSubmit}>
       <h2>Login</h2>
-      <input
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder="Username"
-        required
-      />
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Password"
-        required
-      />
+      <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" required />
+      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
       <button type="submit">Login</button>
     </form>
   );

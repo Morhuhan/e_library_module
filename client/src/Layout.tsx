@@ -19,7 +19,6 @@ const Layout: React.FC = () => {
 
   return (
     <>
-      {/* Например, не показываем Header на главной */}
       {!isHomePage && <Header />}
 
       <ToastContainer />
@@ -29,12 +28,12 @@ const Layout: React.FC = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* Приватные маршруты — обёрнуты в PrivateRoute */}
         <Route element={<PrivateRoute />}>
           <Route path="/lists" element={<Lists />} />
           <Route path="/action" element={<BorrowReturn />} />
           <Route path="/borrow-records" element={<BorrowRecordsList />} />
         </Route>
+
       </Routes>
     </>
   );

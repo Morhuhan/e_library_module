@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import httpClient from '../utils/httpsClient.tsx';
 import { BorrowRecord } from '../interfaces.tsx';
 
-// Предполагаем, что бэкенд возвращает { data, total, page, limit }
 interface PaginatedBorrowRecords {
   data: BorrowRecord[];
   total: number;
@@ -16,16 +15,12 @@ const BorrowRecordsList: React.FC = () => {
   const [searchValue, setSearchValue] = useState('');
   const [onlyDebts, setOnlyDebts] = useState(false);
 
-  // Пагинация
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
 
-  // Функция загрузки записей с учётом пагинации, фильтра и поиска
   const fetchBorrowRecords = async (newPage = 1, newLimit = 10) => {
     try {
-      // Предполагаем, что есть эндпоинт GET /borrow-records/paginated
-      // который умеет принимать search, onlyDebts, page, limit
       const response = await httpClient.get<PaginatedBorrowRecords>(
         '/borrow-records/paginated',
         {
@@ -37,7 +32,6 @@ const BorrowRecordsList: React.FC = () => {
           },
         }
       );
-      // Обновляем стейты
       setBorrowRecords(response.data.data);
       setTotal(response.data.total);
       setPage(response.data.page);
@@ -47,23 +41,17 @@ const BorrowRecordsList: React.FC = () => {
     }
   };
 
-  // При изменении page/limit — подгружаем
   useEffect(() => {
     fetchBorrowRecords(page, limit);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit]);
 
-  // При изменении поисковой строки / флажка "только невозвращённые" — сбрасываем страницу и грузим
   useEffect(() => {
     setPage(1);
     fetchBorrowRecords(1, limit);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchValue, onlyDebts]);
 
-  // Вычисляем общее число страниц
   const totalPages = Math.ceil(total / limit);
 
-  // Вспомогательная функция
   const isReturned = (record: BorrowRecord) => record.returnDate !== null;
 
   return (
@@ -91,7 +79,6 @@ const BorrowRecordsList: React.FC = () => {
         </label>
       </div>
 
-      {/* Таблица записей */}
       <table className="borrow-records-table">
         <thead>
           <tr>
@@ -112,7 +99,6 @@ const BorrowRecordsList: React.FC = () => {
               const copyInfo =
                 record.bookCopy?.copyInfo || `Экз. #${record.bookCopy?.id}`;
 
-              // Person
               const person = record.person
                 ? `${record.person.lastName} ${record.person.firstName}${
                     record.person.middleName ? ` ${record.person.middleName}` : ''

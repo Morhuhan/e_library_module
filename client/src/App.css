@@ -1,11 +1,9 @@
 /* App.css */
 
-/* Общие стили приложения */
 .App {
   text-align: center;
 }
 
-/* Шапка */
 .app-header {
   background-color: #f5f5f5;
   padding: 10px;

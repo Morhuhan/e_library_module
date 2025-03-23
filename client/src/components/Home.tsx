@@ -1,7 +1,7 @@
 // src/components/Home.tsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import httpClient from '../utils/httpsClient.tsx';
+import LogoutButton from './LogoutButton.tsx';  
 
 function Home() {
   const navigate = useNavigate();
@@ -15,17 +15,6 @@ function Home() {
     navigate('/action');
   };
 
-  const handleLogout = async () => {
-    try {
-      await httpClient.post('/auth/logout');
-      localStorage.removeItem('username');
-      navigate('/');
-    } catch (err) {
-      console.error('Ошибка при выходе из системы:', err);
-    }
-  };
-
-  // Если есть username – считаем, что авторизован
   if (username) {
     return (
       <div>
@@ -33,12 +22,11 @@ function Home() {
         
         <button onClick={handleLibraryClick}>Библиотека</button>
         <button onClick={handleContingentClick}>Контингент</button>
-        <button onClick={handleLogout}>Выход</button>
+        <LogoutButton /> 
       </div>
     );
   }
 
-  // Иначе не авторизован
   const handleLoginClick = () => {
     navigate('/login');
   };

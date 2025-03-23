@@ -46,3 +46,8 @@ export interface BorrowRecord {
   acceptedByUser?: User | null;
   bookCopy: BookCopy;
 }
+
+export interface ErrorResponse {
+  message?: string;
+  error?: string;
+}

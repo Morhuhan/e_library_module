@@ -9,33 +9,33 @@ import {
   ParseIntPipe,
   NotFoundException,
   Query,
+  UseFilters,
+  UseGuards,
 } from '@nestjs/common';
 import { BookCopiesService } from './book-copies.service';
 import { BookCopy } from './book-copy.entity';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('book-copies')
+@UseGuards(AuthGuard('jwt'))
 export class BookCopiesController {
   constructor(private readonly copiesService: BookCopiesService) {}
 
-  // Получить все экземпляры (старый метод, без пагинации)
   @Get()
   findAll(): Promise<BookCopy[]> {
     return this.copiesService.findAll();
   }
 
-  // Получить один экземпляр по ID
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number): Promise<BookCopy | null> {
     return this.copiesService.findOne(id);
   }
 
-  // Создать новый экземпляр
   @Post()
   create(@Body() data: Partial<BookCopy>): Promise<BookCopy> {
     return this.copiesService.create(data);
   }
 
-  // Обновить экземпляр
   @Put(':id')
   async update(
     @Param('id', ParseIntPipe) id: number,
@@ -48,13 +48,11 @@ export class BookCopiesController {
     return updated;
   }
 
-  // Удалить экземпляр
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.copiesService.remove(id);
   }
 
-  // Пример: поиск по copyInfo
   @Get('find/by-info')
   async findByCopyInfo(@Query('info') info: string) {
     const copy = await this.copiesService.findByCopyInfo(info);
@@ -64,7 +62,6 @@ export class BookCopiesController {
     return copy;
   }
 
-  // === ВАЖНО: метод для пагинации ===
   @Get('paginated')
   async getPaginated(
     @Query('search') search: string,
@@ -72,7 +69,6 @@ export class BookCopiesController {
     @Query('page', ParseIntPipe) page = 1,
     @Query('limit', ParseIntPipe) limit = 10,
   ) {
-    // Приводим onlyAvailable к boolean (приходит строка 'true'/'false')
     const onlyAvailableBool = onlyAvailable === 'true';
 
     return this.copiesService.findPaginated(search, onlyAvailableBool, page, limit);

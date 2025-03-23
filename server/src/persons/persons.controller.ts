@@ -7,11 +7,14 @@ import {
     Delete,
     ParseIntPipe,
     Put,
+    UseGuards,
   } from '@nestjs/common';
   import { PersonsService } from './persons.service';
   import { Person } from './person.entity';
+import { AuthGuard } from '@nestjs/passport';
   
   @Controller('persons')
+  @UseGuards(AuthGuard('jwt'))
   export class PersonsController {
     constructor(private readonly personsService: PersonsService) {}
   
