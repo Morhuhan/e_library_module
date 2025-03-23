@@ -1,7 +1,8 @@
+// src/components/LogoutProvider.tsx
 import React, { createContext, useContext, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
-import { setLogoutFunction } from './httpsClient.tsx';
+import httpClient, { setLogoutFunction } from './httpsClient.tsx';
 
 const LogoutContext = createContext<() => void>(() => {});
 
@@ -14,11 +15,18 @@ interface LogoutProviderProps {
 export const LogoutProvider: React.FC<LogoutProviderProps> = ({ children }) => {
   const navigate = useNavigate();
 
-  const logout = () => {
-    localStorage.removeItem('username');
-    Cookies.remove('access_token');
-    Cookies.remove('refresh_token');
-    navigate('/login');
+  const logout = async () => {
+    try {
+      await httpClient.post('/auth/logout');
+      
+      localStorage.removeItem('username');
+      Cookies.remove('access_token');
+      Cookies.remove('refresh_token');
+      
+      navigate('/login');
+    } catch (error) {
+      console.error('Ошибка при выходе:', error);
+    }
   };
 
   useEffect(() => {

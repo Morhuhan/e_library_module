@@ -21,7 +21,6 @@ function Home() {
         <h1>Здравствуйте, {username}!</h1>
         
         <button onClick={handleLibraryClick}>Библиотека</button>
-        <button onClick={handleContingentClick}>Контингент</button>
         <LogoutButton /> 
       </div>
     );
