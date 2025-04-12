@@ -12,6 +12,7 @@ import { BooksModule } from './books/book.module';
 import { BorrowRecordsModule } from './borrow-records/borrow-records.module';
 import { BookCopiesModule } from './book-copies/book-copies.module';
 import { PersonsModule } from './persons/persons.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { PersonsModule } from './persons/persons.module';
     BorrowRecordsModule,
     BookCopiesModule,
     PersonsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

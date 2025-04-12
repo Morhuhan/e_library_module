@@ -12,6 +12,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 import PrivateRoute from './components/PrivateRoute.tsx';
 import BorrowRecordsList from './components/BorrowRecordsList.tsx';
+import Reports from './components/Reports.tsx';
 
 const Layout: React.FC = () => {
   const location = useLocation();
@@ -32,6 +33,7 @@ const Layout: React.FC = () => {
           <Route path="/lists" element={<Lists />} />
           <Route path="/action" element={<BorrowReturn />} />
           <Route path="/borrow-records" element={<BorrowRecordsList />} />
+          <Route path="/reports" element={<Reports />} />
         </Route>
 
       </Routes>

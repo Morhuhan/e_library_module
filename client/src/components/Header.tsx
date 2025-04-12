@@ -23,6 +23,10 @@ const Header: React.FC = () => {
     navigate('/borrow-records');
   };
 
+  const handleGoReports = () => {
+    navigate('/reports');
+  };
+
   return (
     <header className="app-header">
       <nav className="app-nav">
@@ -37,6 +41,9 @@ const Header: React.FC = () => {
         </button>
         <button onClick={handleGoBorrowRecords} className="nav-button">
           Записи
+        </button>
+        <button onClick={handleGoReports} className="nav-button">
+          Отчеты
         </button>
 
         <span className="user-name">
