@@ -13,6 +13,7 @@ import { BorrowRecordsModule } from './borrow-records/borrow-records.module';
 import { BookCopiesModule } from './book-copies/book-copies.module';
 import { PersonsModule } from './persons/persons.module';
 import { ReportsModule } from './reports/reports.module';
+import { ImportExportModule } from './import-export/import-export.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { ReportsModule } from './reports/reports.module';
     BookCopiesModule,
     PersonsModule,
     ReportsModule,
+    ImportExportModule,
   ],
   controllers: [AppController],
   providers: [AppService],

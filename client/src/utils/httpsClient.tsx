@@ -12,7 +12,7 @@ export const setLogoutFunction = (logoutFn: () => void) => {
 const httpClient = axios.create({
   baseURL: '/api',
   withCredentials: true,
-  timeout: 2000,
+  timeout: 100000,
 });
 
 let isRefreshing = false;

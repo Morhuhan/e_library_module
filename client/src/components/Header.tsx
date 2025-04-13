@@ -27,6 +27,10 @@ const Header: React.FC = () => {
     navigate('/reports');
   };
 
+  const hableGoImportExport = () => {
+    navigate('/import-export');
+  };
+
   return (
     <header className="app-header">
       <nav className="app-nav">
@@ -44,6 +48,9 @@ const Header: React.FC = () => {
         </button>
         <button onClick={handleGoReports} className="nav-button">
           Отчеты
+        </button>
+        <button onClick={hableGoImportExport} className="nav-button">
+          Импорт/Экспорт
         </button>
 
         <span className="user-name">
