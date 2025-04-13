@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
-import Layout from './Layout.tsx';
 import { LogoutProvider } from './utils/LogoutProvider.tsx';
+import Layout from './utils/Layout.tsx';
 
 function App() {
   return (

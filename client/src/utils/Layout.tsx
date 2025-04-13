@@ -1,19 +1,17 @@
 import React from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
-import Header from './components/Header.tsx';
-import Home from './components/Home.tsx';
-import Login from './components/Login.tsx';
-import Register from './components/Register.tsx';
-import Lists from './components/Lists.tsx';
-import BorrowReturn from './components/BorrowReturn.tsx';
-
+import Header from '../components/Header.tsx';
+import Home from '../pages/Home.tsx';
+import Login from '../pages/Login.tsx';
+import Register from '../pages/Register.tsx';
+import Lists from '../pages//Lists.tsx';
+import BorrowReturn from '../pages/BorrowReturn.tsx';
+import BorrowRecordsList from '../pages/BorrowRecordsList.tsx';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
-import PrivateRoute from './components/PrivateRoute.tsx';
-import BorrowRecordsList from './components/BorrowRecordsList.tsx';
-import Reports from './components/Reports.tsx';
-import ImportExport from './components/ImportExport.tsx';
+import PrivateRoute from './PrivateRoute.tsx';
+import Reports from '../pages/Reports.tsx';
+import ImportExport from '../pages/ImportExport.tsx';
 
 const Layout: React.FC = () => {
   const location = useLocation();

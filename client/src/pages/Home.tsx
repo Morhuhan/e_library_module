@@ -1,7 +1,7 @@
 // src/components/Home.tsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import LogoutButton from './LogoutButton.tsx';  
+import LogoutButton from '../components/LogoutButton.tsx';
 
 function Home() {
   const navigate = useNavigate();

@@ -33,4 +33,6 @@ export class ReportsController {
   async getBooksWithoutCopies() {
     return this.reportsService.getBooksWithoutCopies();
   }
+
+  
 }

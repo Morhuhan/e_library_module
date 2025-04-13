@@ -32,7 +32,7 @@ export class TypeOrmExceptionFilter implements ExceptionFilter {
       message = 'Невозможно удалить/изменить: нарушение внешнего ключа.';
     }
 
-    // Кастомныеошибки из триггера
+    // Кастомные ошибки из триггера
     else if (pgCode === 'P0001') {
       status = HttpStatus.BAD_REQUEST;
 
