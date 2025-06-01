@@ -88,26 +88,46 @@ const Reports: React.FC = () => {
   };
 
   return (
-    <div>
-      <h2>Отчёты</h2>
-      <div style={{ marginBottom: '1rem' }}>
-        <button onClick={handleUnreturned} disabled={loading}>
+    <div className="container mx-auto px-4 py-4">
+      <h2 className="text-xl font-semibold mb-4">Отчёты</h2>
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={handleUnreturned}
+          disabled={loading}
+          className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-2 px-3 rounded disabled:opacity-50"
+        >
           Невозвращенные
         </button>
-        <button onClick={handleOverdue} disabled={loading} style={{ marginLeft: 8 }}>
+        <button
+          onClick={handleOverdue}
+          disabled={loading}
+          className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-2 px-3 rounded disabled:opacity-50"
+        >
           Просроченные
         </button>
-        <button onClick={handlePopular} disabled={loading} style={{ marginLeft: 8 }}>
+        <button
+          onClick={handlePopular}
+          disabled={loading}
+          className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-2 px-3 rounded disabled:opacity-50"
+        >
           Популярные
         </button>
-        <button onClick={handleActiveReaders} disabled={loading} style={{ marginLeft: 8 }}>
+        <button
+          onClick={handleActiveReaders}
+          disabled={loading}
+          className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-2 px-3 rounded disabled:opacity-50"
+        >
           Активные читатели
         </button>
-        <button onClick={handleBooksWithoutCopies} disabled={loading} style={{ marginLeft: 8 }}>
+        <button
+          onClick={handleBooksWithoutCopies}
+          disabled={loading}
+          className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-2 px-3 rounded disabled:opacity-50"
+        >
           Без экземпляров
         </button>
       </div>
-      {loading && <p>Загрузка...</p>}
+      {loading && <p className="mt-4 text-sm">Загрузка...</p>}
     </div>
   );
 };

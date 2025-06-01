@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import httpClient from '../utils/httpsClient.tsx';
 import type { BorrowRecord, PaginatedResponse } from '../utils/interfaces.tsx';
 import Pagination from '../components/Pagination.tsx';
+import { toast } from 'react-toastify';
 
 const BorrowRecordsList: React.FC = () => {
   const [borrowRecords, setBorrowRecords] = useState<BorrowRecord[]>([]);
@@ -33,6 +34,36 @@ const BorrowRecordsList: React.FC = () => {
     }
   };
 
+  const handleCellClick = (e: React.MouseEvent<HTMLTableCellElement>) => {
+    const text = e.currentTarget.textContent?.trim() || '';
+
+    if (navigator && 'clipboard' in navigator) {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          toast.success(`Скопировано: "${text}"`);
+        })
+        .catch((err) => {
+          console.error('Ошибка при копировании текста (clipboard): ', err);
+        });
+    } else {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        toast.success(`Скопировано: "${text}"`);
+      } catch (copyErr) {
+        console.error('Ошибка при копировании текста (execCommand): ', copyErr);
+      }
+    }
+  };
+
   useEffect(() => {
     fetchBorrowRecords(page, limit);
   }, [page, limit]);
@@ -45,20 +76,18 @@ const BorrowRecordsList: React.FC = () => {
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div className="borrow-records-container">
-      <h2>Записи о выдаче книг (пагинация)</h2>
+    <div className="container mx-auto px-4 py-4">
+      <h2 className="text-xl font-semibold mb-4">Записи о выдаче книг (пагинация)</h2>
 
-      <div className="search-container">
+      <div className="mb-2 flex flex-col sm:flex-row items-center gap-2">
         <input
           type="text"
           placeholder="Поиск по фамилии..."
           value={searchValue}
           onChange={(e) => setSearchValue(e.target.value)}
-          className="search-input"
+          className="border border-gray-300 rounded px-2 py-1 focus:outline-none text-sm"
         />
-      </div>
-      <div className="checkbox-container">
-        <label>
+        <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={onlyDebts}
@@ -68,57 +97,123 @@ const BorrowRecordsList: React.FC = () => {
         </label>
       </div>
 
-      <table className="borrow-records-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Название</th>
-            <th>Экземпляр</th>
-            <th>Получатель</th>
-            <th>Дата выдачи</th>
-            <th>Дата возврата</th>
-            <th>Кто выдал</th>
-            <th>Кто принял</th>
-          </tr>
-        </thead>
-        <tbody>
-          {borrowRecords.length > 0 ? (
-            borrowRecords.map((rec) => {
-              const bookTitle = rec.bookCopy?.book?.title || '—';
-              const copyInfo = rec.bookCopy?.copyInfo || `Экз. #${rec.bookCopy?.id}`;
-              const person = rec.person
-                ? `${rec.person.lastName} ${rec.person.firstName}${
-                    rec.person.middleName ? ` ${rec.person.middleName}` : ''
-                  }`
-                : '—';
-              const issuedUser =
-                rec.issuedByUser?.username || `ID ${rec.issuedByUser?.id || '—'}`;
-              const acceptedUser =
-                rec.acceptedByUser?.username || `ID ${rec.acceptedByUser?.id || '—'}`;
-              const isReturned = rec.returnDate !== null;
-
-              return (
-                <tr key={rec.id}>
-                  <td>{rec.id}</td>
-                  <td>{bookTitle}</td>
-                  <td>{copyInfo}</td>
-                  <td>{person}</td>
-                  <td>{rec.borrowDate || '—'}</td>
-                  <td>{rec.returnDate || '—'}</td>
-                  <td>{issuedUser}</td>
-                  <td>{isReturned ? acceptedUser : '—'}</td>
-                </tr>
-              );
-            })
-          ) : (
-            <tr>
-              <td colSpan={8} className="no-records">
-                Нет записей
-              </td>
+      <div className="overflow-x-auto">
+        <table className="table-fixed w-full text-sm border-collapse border-2 border-gray-400">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="p-2 border-2 border-gray-400 w-16 break-words whitespace-normal">
+                ID
+              </th>
+              <th className="p-2 border-2 border-gray-400 w-48 break-words whitespace-normal">
+                Название
+              </th>
+              <th className="p-2 border-2 border-gray-400 w-36 break-words whitespace-normal">
+                Экземпляр
+              </th>
+              <th className="p-2 border-2 border-gray-400 w-48 break-words whitespace-normal">
+                Получатель
+              </th>
+              <th className="p-2 border-2 border-gray-400 w-28 break-words whitespace-normal">
+                Дата выдачи
+              </th>
+              <th className="p-2 border-2 border-gray-400 w-28 break-words whitespace-normal">
+                Дата возврата
+              </th>
+              <th className="p-2 border-2 border-gray-400 w-32 break-words whitespace-normal">
+                Кто выдал
+              </th>
+              <th className="p-2 border-2 border-gray-400 w-32 break-words whitespace-normal">
+                Кто принял
+              </th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {borrowRecords.length > 0 ? (
+              borrowRecords.map((rec) => {
+                const bookTitle = rec.bookCopy?.book?.title || '—';
+                const copyInfo = rec.bookCopy?.copyInfo || `Экз. #${rec.bookCopy?.id}`;
+                const person = rec.person
+                  ? `${rec.person.lastName} ${rec.person.firstName}${
+                      rec.person.middleName ? ` ${rec.person.middleName}` : ''
+                    }`
+                  : '—';
+                const issuedUser =
+                  rec.issuedByUser?.username || `ID ${rec.issuedByUser?.id || '—'}`;
+                const acceptedUser =
+                  rec.acceptedByUser?.username || `ID ${rec.acceptedByUser?.id || '—'}`;
+                const isReturned = rec.returnDate !== null;
+
+                return (
+                  <tr key={rec.id} className="group border-b hover:bg-gray-200 transition-colors">
+                    <td
+                      className="p-2 border break-words whitespace-normal cursor-pointer
+                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
+                      onClick={handleCellClick}
+                    >
+                      {rec.id}
+                    </td>
+                    <td
+                      className="p-2 border break-words whitespace-normal cursor-pointer
+                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
+                      onClick={handleCellClick}
+                    >
+                      {bookTitle}
+                    </td>
+                    <td
+                      className="p-2 border break-words whitespace-normal cursor-pointer
+                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
+                      onClick={handleCellClick}
+                    >
+                      {copyInfo}
+                    </td>
+                    <td
+                      className="p-2 border break-words whitespace-normal cursor-pointer
+                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
+                      onClick={handleCellClick}
+                    >
+                      {person}
+                    </td>
+                    <td
+                      className="p-2 border break-words whitespace-normal cursor-pointer
+                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
+                      onClick={handleCellClick}
+                    >
+                      {rec.borrowDate || '—'}
+                    </td>
+                    <td
+                      className="p-2 border break-words whitespace-normal cursor-pointer
+                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
+                      onClick={handleCellClick}
+                    >
+                      {rec.returnDate || '—'}
+                    </td>
+                    <td
+                      className="p-2 border break-words whitespace-normal cursor-pointer
+                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
+                      onClick={handleCellClick}
+                    >
+                      {issuedUser}
+                    </td>
+                    <td
+                      className="p-2 border break-words whitespace-normal cursor-pointer
+                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
+                      onClick={handleCellClick}
+                    >
+                      {isReturned ? acceptedUser : '—'}
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={8} className="p-2 border text-center">
+                  Нет записей
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <Pagination
         page={page}

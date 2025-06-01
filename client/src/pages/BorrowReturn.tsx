@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { Book, Person, BookCopy } from '../utils/interfaces.tsx';
+import type { Book, Person } from '../utils/interfaces.tsx';
 import httpClient from '../utils/httpsClient.tsx';
 import { toast } from 'react-toastify';
 
@@ -122,55 +122,71 @@ const BorrowReturn: React.FC = () => {
   const filteredCopies = getFilteredCopies();
 
   return (
-    <div className="borrow-return-container">
-      <h2>Выдача / Возврат</h2>
-      <div className="form-group">
-        <label>Действие:</label>
-        <select value={actionType} onChange={handleActionTypeChange}>
-          <option value="borrow">Выдать</option>
-          <option value="return">Принять</option>
-        </select>
-      </div>
-      <div className="form-group">
-        <label>Локальный индекс:</label>
-        <input
-          type="text"
-          placeholder="Введите индекс"
-          value={bookLocalIndexQuery}
-          onChange={(e) => setBookLocalIndexQuery(e.target.value)}
-        />
-        <button onClick={handleFindBook}>Найти</button>
+    <div className="container mx-auto px-4 py-4">
+      <h2 className="text-xl font-semibold mb-4">Выдача / Возврат</h2>
+      <div className="flex flex-col gap-4 max-w-md">
+        <div className="flex flex-col">
+          <label className="text-sm font-medium mb-1">Действие:</label>
+          <select
+            value={actionType}
+            onChange={handleActionTypeChange}
+            className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none"
+          >
+            <option value="borrow">Выдать</option>
+            <option value="return">Принять</option>
+          </select>
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-sm font-medium mb-1">Локальный индекс:</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Введите индекс"
+              value={bookLocalIndexQuery}
+              onChange={(e) => setBookLocalIndexQuery(e.target.value)}
+              className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none"
+            />
+            <button
+              onClick={handleFindBook}
+              className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-1 px-3 rounded focus:outline-none"
+            >
+              Найти
+            </button>
+          </div>
+        </div>
       </div>
 
       {foundBook && (
-        <div className="book-info">
-          <h4>Найдена книга:</h4>
-          <p>
+        <div className="mt-4 p-4 border border-gray-200 rounded bg-gray-50">
+          <h4 className="font-semibold mb-2">Найдена книга:</h4>
+          <p className="text-sm mb-1">
             <strong>{foundBook.title}</strong>
             {foundBook.authors ? ` / ${foundBook.authors}` : ''}
             {foundBook.bookType ? ` [${foundBook.bookType}]` : ''}
           </p>
-          <p>УДК: {foundBook.udc || '(нет)'}</p>
-          <p>ББК: {foundBook.bbk || '(нет)'}</p>
-          <p>Лок. индекс: {foundBook.localIndex || '(нет)'}</p>
+          <p className="text-sm mb-1">УДК: {foundBook.udc || '(нет)'}</p>
+          <p className="text-sm mb-1">ББК: {foundBook.bbk || '(нет)'}</p>
+          <p className="text-sm mb-2">Лок. индекс: {foundBook.localIndex || '(нет)'}</p>
+
           {foundBook.bookCopies?.length ? (
-            <ul>
+            <ul className="list-disc list-inside text-sm mb-2">
               {foundBook.bookCopies.map((c) => {
                 const borrowed = c.borrowRecords?.some((r) => !r.returnDate);
                 return (
                   <li key={c.id}>
-                    {c.copyInfo || `Экземпляр #${c.id}`} - {borrowed ? 'Выдан' : 'В наличии'}
+                    {c.copyInfo || `Экземпляр #${c.id}`} – {borrowed ? 'Выдан' : 'В наличии'}
                   </li>
                 );
               })}
             </ul>
           ) : (
-            <p>Нет экземпляров</p>
+            <p className="text-sm">Нет экземпляров</p>
           )}
 
           {filteredCopies.length > 0 && (
-            <div className="form-group">
-              <label>
+            <div className="flex flex-col mb-2">
+              <label className="text-sm font-medium">
                 {actionType === 'borrow'
                   ? 'Свободный экземпляр:'
                   : 'Выданный экземпляр:'}
@@ -178,6 +194,7 @@ const BorrowReturn: React.FC = () => {
               <select
                 value={selectedCopyId ?? ''}
                 onChange={(e) => setSelectedCopyId(Number(e.target.value))}
+                className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none mt-1"
               >
                 <option value="">-- не выбрано --</option>
                 {filteredCopies.map((c) => (
@@ -188,35 +205,44 @@ const BorrowReturn: React.FC = () => {
               </select>
             </div>
           )}
+
+          {actionType === 'borrow' && filteredCopies.length > 0 && (
+            <div className="flex flex-col mb-2">
+              <label className="text-sm font-medium">Кому выдаём:</label>
+              <select
+                value={selectedPersonId ?? ''}
+                onChange={(e) => setSelectedPersonId(Number(e.target.value))}
+                className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none mt-1"
+              >
+                <option value="">-- выберите --</option>
+                {persons.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.lastName} {p.firstName}
+                    {p.middleName ? ` ${p.middleName}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
 
-      {actionType === 'borrow' && filteredCopies.length > 0 && (
-        <div className="form-group">
-          <label>Кому выдаём:</label>
-          <select
-            value={selectedPersonId ?? ''}
-            onChange={(e) => setSelectedPersonId(Number(e.target.value))}
-          >
-            <option value="">-- выберите --</option>
-            {persons.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.lastName} {p.firstName}
-                {p.middleName ? ` ${p.middleName}` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div className="form-group">
+      <div className="mt-4">
         {actionType === 'borrow' && filteredCopies.length > 0 && (
-          <button onClick={handleBorrow} disabled={!selectedCopyId}>
+          <button
+            onClick={handleBorrow}
+            disabled={!selectedCopyId}
+            className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded mr-2 disabled:opacity-50"
+          >
             Выдать
           </button>
         )}
         {actionType === 'return' && filteredCopies.length > 0 && (
-          <button onClick={handleReturn} disabled={!selectedCopyId}>
+          <button
+            onClick={handleReturn}
+            disabled={!selectedCopyId}
+            className="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded disabled:opacity-50"
+          >
             Принять
           </button>
         )}

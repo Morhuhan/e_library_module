@@ -1,33 +1,31 @@
-// src/components/LogoutProvider.tsx
-import React, { createContext, useContext, useEffect, ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { createContext, useContext, useEffect, useCallback, ReactNode } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Cookies from 'js-cookie';
+import { useAuth } from './AuthContext.tsx';
 import httpClient, { setLogoutFunction } from './httpsClient.tsx';
 
 const LogoutContext = createContext<() => void>(() => {});
-
 export const useLogout = () => useContext(LogoutContext);
 
-interface LogoutProviderProps {
-  children: ReactNode;
-}
-
-export const LogoutProvider: React.FC<LogoutProviderProps> = ({ children }) => {
+export const LogoutProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { clearAuth } = useAuth();
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
+    console.log('Logout called');
     try {
       await httpClient.post('/auth/logout');
-      
-      localStorage.removeItem('username');
-      Cookies.remove('access_token');
-      Cookies.remove('refresh_token');
-      
-      navigate('/login');
-    } catch (error) {
-      console.error('Ошибка при выходе:', error);
+    } catch (err) {
+      console.log('Logout request failed:', err);
+    } finally {
+      Cookies.remove('username');
+      clearAuth();
+      if (location.pathname !== '/login') {
+        navigate('/login', { replace: true });
+      }
     }
-  };
+  }, [navigate, clearAuth, location.pathname]);
 
   useEffect(() => {
     setLogoutFunction(logout);

@@ -1,96 +1,118 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as ms from 'ms';
-import { Response } from 'express';
+import { Response, Request } from 'express';
+
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly usersService: UsersService,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
+    private readonly users: UsersService,
+    private readonly jwt: JwtService,
+    private readonly cfg: ConfigService,
   ) {}
 
-  async login(user: any) {
-    const payload = { username: user.username, sub: user.id };
 
-    const access_token = this.jwtService.sign(payload, {
-      expiresIn: this.configService.get<string>('ACCESS_TOKEN_EXPIRES_IN'),
-      secret: this.configService.get<string>('JWT_SECRET'),
-    });
-
-    const refresh_token = this.jwtService.sign(payload, {
-      expiresIn: this.configService.get<string>('REFRESH_TOKEN_EXPIRES_IN'),
-      secret: this.configService.get<string>('JWT_SECRET'),
-    });
-
-    return { access_token, refresh_token };
-  }
-
-  async refreshToken(refreshToken: string) {
-    try {
-      const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get<string>('JWT_SECRET'),
-      });
-
-      const newAccessToken = this.jwtService.sign(
-        { username: payload.username, sub: payload.sub },
-        {
-          expiresIn: this.configService.get<string>('ACCESS_TOKEN_EXPIRES_IN'),
-          secret: this.configService.get<string>('JWT_SECRET'),
-        },
-      );
-
-      return { access_token: newAccessToken };
-    } catch (error) {
-      console.error('Error verifying token:', error);
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-  }
-
-  async validateUser(username: string, pass: string): Promise<any> {
-    const user = await this.usersService.findOne(username);
+  private async validateUser(username: string, pass: string) {
+    const user = await this.users.findOne(username);
     if (user && (await bcrypt.compare(pass, user.pass))) {
-      const { pass, ...result } = user;
-      return result;
+      const { pass: _, ...safe } = user;
+      return safe;
     }
-    return null;
+    throw new UnauthorizedException('Неправильный логин или пароль');
   }
 
-  // Устанавливает access_token в куки
-  setAccessTokenCookie(res: Response, token: string) {
-    const maxAge = ms(this.configService.get<string>('ACCESS_TOKEN_EXPIRES_IN'));
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
-      maxAge,
+  private sign(
+    payload: Record<string, unknown>,
+    life: string,
+  ) {
+    return this.jwt.sign(payload, {
+      expiresIn: life,
+      secret: this.cfg.get<string>('JWT_SECRET'),
     });
   }
 
-  // Устанавливает refresh_token в куки
-  setRefreshTokenCookie(res: Response, token: string) {
-    const refreshTokenMaxAge = ms(this.configService.get<string>('REFRESH_TOKEN_EXPIRES_IN'));
-    res.cookie('refresh_token', token, {
+  private setTokenCookie(
+    res: Response,
+    name: string,
+    token: string,
+    life: string,
+  ) {
+    res.cookie(name, token, {
       httpOnly: true,
-      secure: false,
       sameSite: 'lax',
-      maxAge: refreshTokenMaxAge,
+      secure: this.cfg.get<string>('NODE_ENV') === 'production',
+      maxAge: ms(life),
+      path: '/',
     });
   }
 
-  // Устанавливает оба токена в куки
-  setCookies(res: Response, access_token: string, refresh_token: string) {
-    this.setAccessTokenCookie(res, access_token);
-    this.setRefreshTokenCookie(res, refresh_token);
+  private setUsernameCookie(res: Response, username: string) {
+    res.cookie('username', username, {
+      httpOnly: false,
+      sameSite: 'lax',
+      secure: this.cfg.get<string>('NODE_ENV') === 'production',
+      maxAge: ms('7d'),
+      path: '/',
+    });
   }
 
-  // Очищает куки
-  clearCookies(res: Response) {
-    res.clearCookie('access_token');
-    res.clearCookie('refresh_token');
+  private clearCookies(res: Response) {
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/' });
+    res.clearCookie('username', { path: '/' });
+  }
+
+  async handleLogin(
+    { username, pass }: { username: string; pass: string },
+    res: Response,
+  ) {
+    const user = await this.validateUser(username, pass);
+
+    const payload = { username: user.username, sub: user.id, role: user.role.name };
+
+    const access = this.sign(payload, this.cfg.get('ACCESS_TOKEN_EXPIRES_IN'));
+    const refresh = this.sign(payload, this.cfg.get('REFRESH_TOKEN_EXPIRES_IN'));
+
+    this.setTokenCookie(res, 'access_token', access, this.cfg.get('ACCESS_TOKEN_EXPIRES_IN'));
+    this.setTokenCookie(res, 'refresh_token', refresh, this.cfg.get('REFRESH_TOKEN_EXPIRES_IN'));
+    this.setUsernameCookie(res, user.username);
+
+    return res.json({ message: 'OK' });
+  }
+
+  handleLogout(res: Response) {
+    this.clearCookies(res);
+    return res.json({ message: 'Вы вышли из системы' });
+  }
+
+  async handleRefresh(req: Request, res: Response) {
+    const rt = req.cookies?.refresh_token;
+    if (!rt) throw new UnauthorizedException('Нет refresh_token');
+
+    let payload: any;
+    try {
+      payload = this.jwt.verify(rt, {
+        secret: this.cfg.get<string>('JWT_SECRET'),
+      });
+    } catch {
+      this.clearCookies(res);
+      throw new UnauthorizedException('Неверный или истёкший refresh_token');
+    }
+
+    const newAccess = this.sign(
+      { username: payload.username, sub: payload.sub, role: payload.role },
+      this.cfg.get('ACCESS_TOKEN_EXPIRES_IN'),
+    );
+
+    this.setTokenCookie(res, 'access_token', newAccess, this.cfg.get('ACCESS_TOKEN_EXPIRES_IN'));
+    return res.json({ access_token: newAccess });
   }
 }

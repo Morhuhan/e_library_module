@@ -1,5 +1,5 @@
-// user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Role } from 'src/auth/roles/role.entity';
 
 @Entity('users')
 export class User {
@@ -11,4 +11,8 @@ export class User {
 
   @Column()
   pass: string;
+
+  @ManyToOne(() => Role)
+  @JoinColumn({ name: 'role_id' })
+  role: Role;
 }

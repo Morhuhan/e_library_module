@@ -64,26 +64,27 @@ const ImportExport: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: 16 }}>
-      <h2>Импорт / Экспорт</h2>
-      <div>
-        <label style={{ marginRight: 8 }}>
+    <div className="container mx-auto px-4 py-4">
+      <h2 className="text-xl font-semibold mb-4">Импорт / Экспорт</h2>
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <label className="text-sm font-medium">
           Сущность:
           <select
             value={entity}
             onChange={(e) => setEntity(e.target.value as EntityType)}
-            style={{ marginLeft: 8 }}
+            className="ml-2 border border-gray-300 rounded px-7 py-1 text-sm focus:outline-none"
           >
             <option value="books">Книги</option>
             <option value="copies">Экземпляры</option>
           </select>
         </label>
-        <label style={{ marginRight: 8 }}>
+
+        <label className="text-sm font-medium">
           Режим:
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as ModeType)}
-            style={{ marginLeft: 8 }}
+            className="ml-2 border border-gray-300 rounded px-7 py-1 text-sm focus:outline-none"
           >
             <option value="import">Импорт</option>
             <option value="export">Экспорт</option>
@@ -92,32 +93,44 @@ const ImportExport: React.FC = () => {
       </div>
 
       {mode === 'import' ? (
-        <div style={{ marginTop: 16 }}>
+        <div className="flex flex-col gap-2">
           <input
             type="file"
             accept=".xlsx,.xls"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
+            className="text-sm"
           />
-          <button onClick={handleImport} style={{ marginLeft: 8 }}>
-            Загрузить
-          </button>
-          <button onClick={handleDownloadTemplate} style={{ marginLeft: 8 }}>
-            Шаблон
-          </button>
+          <div className="space-x-2">
+            <button
+              onClick={handleImport}
+              className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-1 px-3 rounded"
+            >
+              Загрузить
+            </button>
+            <button
+              onClick={handleDownloadTemplate}
+              className="bg-gray-500 hover:bg-gray-600 text-white text-sm font-medium py-1 px-3 rounded"
+            >
+              Шаблон
+            </button>
+          </div>
         </div>
       ) : (
-        <div style={{ marginTop: 16 }}>
-          <label>
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium">
             Лимит (0 = все):
             <input
               type="number"
               min={0}
               value={limit}
               onChange={(e) => setLimit(Number(e.target.value))}
-              style={{ width: 80, marginLeft: 8 }}
+              className="ml-2 w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none"
             />
           </label>
-          <button onClick={handleExport} style={{ marginLeft: 8 }}>
+          <button
+            onClick={handleExport}
+            className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-1 px-3 rounded w-fit"
+          >
             Скачать
           </button>
         </div>

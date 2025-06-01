@@ -14,6 +14,7 @@ import { BookCopiesModule } from './book-copies/book-copies.module';
 import { PersonsModule } from './persons/persons.module';
 import { ReportsModule } from './reports/reports.module';
 import { ImportExportModule } from './import-export/import-export.module';
+import { AdminSeeder } from './seeders/admin.seeder';
 
 @Module({
   imports: [
@@ -48,6 +49,6 @@ import { ImportExportModule } from './import-export/import-export.module';
     ImportExportModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, AdminSeeder],
 })
 export class AppModule {}
