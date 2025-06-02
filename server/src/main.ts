@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as cookieParser from 'cookie-parser';
-import { TypeOrmExceptionFilter } from './excepions/typeorm-exception.filter';
+import { TypeOrmExceptionFilter } from './_excepions/typeorm-exception.filter';
 import { networkInterfaces } from 'os';
 import { Logger } from '@nestjs/common';
 import axios from 'axios';

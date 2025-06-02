@@ -12,8 +12,8 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthGuard } from '@nestjs/passport';
-import { Roles } from 'src/auth/roles/roles.decorator';
-import { Role } from 'src/auth/roles/role.enum';
+import { Roles } from 'src/_auth/roles/roles.decorator';
+import { Role } from 'src/_auth/roles/role.enum';
 
 @Controller('users')
 export class UsersController {

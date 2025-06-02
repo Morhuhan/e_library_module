@@ -33,7 +33,6 @@ export class BooksController {
       case 'local_index':
         foundBook = await this.booksService.findOneByLocalIndex(value);
         break;
-
       default:
         throw new NotFoundException('Неверный тип поиска (searchType)');
     }
@@ -63,7 +62,7 @@ export class BooksController {
   }> {
     return this.booksService.findPaginated(search, onlyAvailable, page, limit);
   }
-  
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number): Promise<Book> {
     return this.booksService.findOneWithRelations(id);
@@ -77,17 +76,22 @@ export class BooksController {
   @Put(':id')
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() data: Partial<Book>,
-  ): Promise<Book> {
+    @Body() data: any,
+  ): Promise<Book | null> {
     const updated = await this.booksService.update(id, data);
-    if (!updated) {
-      throw new NotFoundException('Книга не найдена');
-    }
+    if (!updated) throw new NotFoundException('Книга не найдена');
     return updated;
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    return this.booksService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    try {
+      await this.booksService.remove(id);
+    } catch (error) {
+      if (error.message.includes('Нельзя удалить книгу')) {
+        throw new NotFoundException(error.message);
+      }
+      throw error;
+    }
   }
 }

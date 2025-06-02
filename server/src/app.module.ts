@@ -7,14 +7,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
-import { AuthModule } from './auth/auth.module';
+import { AuthModule } from './_auth/auth.module';
 import { BooksModule } from './books/book.module';
 import { BorrowRecordsModule } from './borrow-records/borrow-records.module';
 import { BookCopiesModule } from './book-copies/book-copies.module';
 import { PersonsModule } from './persons/persons.module';
-import { ReportsModule } from './reports/reports.module';
-import { ImportExportModule } from './import-export/import-export.module';
-import { AdminSeeder } from './seeders/admin.seeder';
+import { ReportsModule } from './_reports/reports.module';
+import { AdminSeeder } from './_seeders/admin.seeder';
 
 @Module({
   imports: [
@@ -46,7 +45,6 @@ import { AdminSeeder } from './seeders/admin.seeder';
     BookCopiesModule,
     PersonsModule,
     ReportsModule,
-    ImportExportModule,
   ],
   controllers: [AppController],
   providers: [AppService, AdminSeeder],

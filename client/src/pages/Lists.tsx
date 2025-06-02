@@ -1,339 +1,347 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, ChangeEvent } from 'react';
 import httpClient from '../utils/httpsClient.tsx';
-import type { Book, BookCopy, PaginatedResponse } from '../utils/interfaces.tsx';
+import type {
+  Book,
+  BookCopy,
+  PaginatedResponse,
+  BookBbkRaw,
+  BookUdcRaw,
+} from '../utils/interfaces.tsx';
 import Pagination from '../components/Pagination.tsx';
+import Modal from '../components/Modal.tsx';
+
+const DEBOUNCE_MS = 300;
+
+/* ---------- модальные типы ---------- */
+interface EditModalProps {
+  visible: boolean;
+  book: Book | null;
+  onClose: () => void;
+  onSaved: () => void;
+}
+interface DeleteModalProps {
+  visible: boolean;
+  book: Book | null;
+  onClose: () => void;
+  onDeleted: () => void;
+}
+
+/* ---------- редактируемые поля и их подписи ---------- */
+const editableFields = [
+  'title',
+  'localIndex',
+  'bookType',
+  'edit',
+  'editionStatement',
+  'series',
+  'physDesc',
+] as const;
+
+const fieldLabels: Record<typeof editableFields[number], string> = {
+  title:            'Название',
+  localIndex:       'Индекс',
+  bookType:         'Тип',
+  edit:             'Редактор',
+  editionStatement: 'Сведения об изд.',
+  series:           'Серия',
+  physDesc:         'Страницы',
+};
+
+/* ---------- Модалка редактирования ---------- */
+const EditBookModal: React.FC<EditModalProps> = ({ visible, book, onClose, onSaved }) => {
+  const [form, setForm] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (book) {
+      const init: Record<string, string> = {};
+      editableFields.forEach(f => { init[f] = (book as any)[f] ?? ''; });
+      setForm(init);
+    }
+  }, [book]);
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) =>
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async () => {
+    if (!book) return;
+    try {
+      const payload: Partial<Book> = {};
+      editableFields.forEach(f => { (payload as any)[f] = form[f] || null; });
+      await httpClient.put(`/books/${book.id}`, payload);
+      onSaved();
+    } catch (err) {
+      console.error(err);
+      alert('Ошибка сохранения');
+    }
+  };
+
+  return (
+    <Modal visible={visible} onClose={onClose}>
+      <h3 className="text-lg font-semibold mb-4">Редактировать книгу №{book?.id}</h3>
+
+      {editableFields.map(f => (
+        <div key={f} className="mb-3">
+          <label className="block text-sm mb-1">{fieldLabels[f]}</label>
+          <input
+            type="text"
+            name={f}
+            value={form[f] ?? ''}
+            onChange={handleChange}
+            className="w-full border rounded px-2 py-1 text-sm"
+          />
+        </div>
+      ))}
+
+      <div className="flex justify-end gap-2 mt-4">
+        <button className="px-3 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300" onClick={onClose}>
+          Отмена
+        </button>
+        <button className="px-3 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700" onClick={handleSubmit}>
+          Сохранить
+        </button>
+      </div>
+    </Modal>
+  );
+};
+
+/* ---------- Модалка удаления ---------- */
+const DeleteConfirmModal: React.FC<DeleteModalProps> = ({ visible, book, onClose, onDeleted }) => {
+  const handleDelete = async () => {
+    if (!book) return;
+    try {
+      await httpClient.delete(`/books/${book.id}`);
+      onDeleted();
+    } catch (err) {
+      console.error(err);
+      alert('Не удалось удалить книгу');
+    }
+  };
+
+  return (
+    <Modal visible={visible} onClose={onClose}>
+      <h3 className="text-lg font-semibold mb-4">Удалить книгу №{book?.id}?</h3>
+      <p className="text-sm mb-4">Действие нельзя отменить.</p>
+      <div className="flex justify-end gap-2">
+        <button className="px-3 py-1 text-sm rounded bg-gray-200 hover:bg-gray-300" onClick={onClose}>
+          Отмена
+        </button>
+        <button className="px-3 py-1 text-sm rounded bg-red-600 text-white hover:bg-red-700" onClick={handleDelete}>
+          Удалить
+        </button>
+      </div>
+    </Modal>
+  );
+};
 
 const Lists: React.FC = () => {
-  const [searchValue, setSearchValue] = useState('');
-  const [onlyAvailable, setOnlyAvailable] = useState(false);
-  const [page, setPage] = useState(1);
+  /* ---------------- state ---------------- */
+  const [searchValue, setSearchValue]   = useState('');
+  const [debouncedSearch, setDebounced] = useState('');
+  const [onlyAvailable, setOnlyAvail]   = useState(false);
+
+  const [page,  setPage]  = useState(1);
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
-  const [books, setBooks] = useState<Book[]>([]);
-  const [expandedBookIds, setExpandedBookIds] = useState<number[]>([]);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedBookForEdit, setSelectedBookForEdit] = useState<Book | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedBookForDelete, setSelectedBookForDelete] = useState<Book | null>(null);
 
-  const fetchBooks = async (newPage = 1, newLimit = 10) => {
+  const [books, setBooks]              = useState<Book[]>([]);
+  const [expandedBookIds, setExpanded] = useState<number[]>([]);
+  const [loading, setLoading]          = useState(false);
+  const [errorMessage, setError]       = useState('');
+
+  /* модалки */
+  const [editVisible,   setEditVisible]   = useState(false);
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [selectedBook,  setSelectedBook]  = useState<Book | null>(null);
+
+  /* ---------------- helpers ---------------- */
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
+
+  const fmtPubPlaces = (pl: Book['publicationPlaces']) =>
+    (pl ?? [])
+      .map(p => [p.city, p.publisher?.name, p.pubYear].filter(Boolean).join(', '))
+      .join('; ') || '—';
+
+  const fmtAuthors = (a: Book['authors']) => (a ?? []).map(x => x.fullName).join('; ') || '—';
+
+  const fmtCodes = (arr: { bbkAbb?: string; udcAbb?: string }[] | null) =>
+    (arr ?? []).map(x => ('bbkAbb' in x ? x.bbkAbb : x.udcAbb)).join(', ') || '—';
+
+  const fmtRawCodes = <T extends { bbkCode?: string; udcCode?: string }>(
+    arr: T[] | null | undefined,
+    field: 'bbkCode' | 'udcCode',
+  ) => (arr ?? []).map(x => x[field]).join(', ') || '—';
+
+  /* ---------------- data fetching ---------------- */
+  const fetchBooks = useCallback(async () => {
     try {
+      setLoading(true);
       const res = await httpClient.get<PaginatedResponse<Book>>('/books/paginated', {
         params: {
-          search: searchValue,
-          onlyAvailable: onlyAvailable ? 'true' : 'false',
-          page: String(newPage),
-          limit: String(newLimit),
+          search:        debouncedSearch,
+          onlyAvailable: String(onlyAvailable),
+          page,
+          limit,
         },
       });
       setBooks(res.data.data);
       setTotal(res.data.total);
-      setLimit(res.data.limit);
-      setPage(res.data.page);
-    } catch (err) {
-      console.error('Ошибка при загрузке книг:', err);
+      setError('');
+    } catch (err: any) {
+      console.error(err);
+      setError('Не удалось загрузить книги. Попробуйте снова.');
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [debouncedSearch, onlyAvailable, page, limit]);
 
-  useEffect(() => {
-    fetchBooks(page, limit);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, limit]);
+  /* эффекты */
+  useEffect(() => { fetchBooks(); }, [fetchBooks]);
+  useEffect(() => { const id = setTimeout(() => setDebounced(searchValue), DEBOUNCE_MS); return () => clearTimeout(id); }, [searchValue]);
+  useEffect(() => setPage(1), [debouncedSearch, onlyAvailable, limit]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  useEffect(() => setExpanded([]), [books]);
 
-  useEffect(() => {
-    setPage(1);
-    fetchBooks(1, limit);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchValue, onlyAvailable]);
+  /* toggle раскрытия */
+  const toggleExpand = (id: number) =>
+    setExpanded(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
 
-  const totalPages = Math.ceil(total / limit);
-
-  const isBookAvailable = (book: Book) => {
-    return book.bookCopies?.some((c) => !c.borrowRecords?.some((r) => !r.returnDate)) || false;
-  };
-
-  const toggleExpandBook = (bookId: number) => {
-    setExpandedBookIds((prev) =>
-      prev.includes(bookId) ? prev.filter((id) => id !== bookId) : [...prev, bookId]
-    );
-  };
-
-  const openEditModal = (book: Book, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedBookForEdit(book);
-    setEditTitle(book.title || '');
-    setIsEditModalOpen(true);
-  };
-
-  const closeEditModal = () => {
-    setIsEditModalOpen(false);
-    setSelectedBookForEdit(null);
-    setEditTitle('');
-  };
-
-  const handleEditSave = async () => {
-    if (!selectedBookForEdit) return;
-    try {
-      await httpClient.put(`/books/${selectedBookForEdit.id}`, { title: editTitle });
-      await fetchBooks(page, limit);
-      closeEditModal();
-    } catch (err) {
-      console.error('Ошибка при сохранении изменений:', err);
-      closeEditModal();
-    }
-  };
-
-  const openDeleteModal = (book: Book, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedBookForDelete(book);
-    setIsDeleteModalOpen(true);
-  };
-
-  const closeDeleteModal = () => {
-    setSelectedBookForDelete(null);
-    setIsDeleteModalOpen(false);
-  };
-
-  const handleDelete = async () => {
-    if (!selectedBookForDelete) return;
-    try {
-      await httpClient.delete(`/books/${selectedBookForDelete.id}`);
-      await fetchBooks(page, limit);
-      closeDeleteModal();
-    } catch (err) {
-      console.error('Ошибка при удалении книги:', err);
-      closeDeleteModal();
-    }
-  };
-
-  const getCopyStatus = (copy: BookCopy) => {
-    const active = copy.borrowRecords?.find((r) => !r.returnDate);
-    return active ? `Выдан (с ${active.borrowDate || '—'})` : 'В наличии';
-  };
-
+  /* ---------------- render ---------------- */
   return (
     <div className="container mx-auto px-4 py-4">
-      <h2 className="text-xl font-semibold mb-4">Список книг (пагинация)</h2>
+      <h2 className="text-xl font-semibold mb-4">Список книг</h2>
 
+      {errorMessage && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4">
+          {errorMessage}
+        </div>
+      )}
+
+      {/* фильтры */}
       <div className="flex flex-col sm:flex-row items-center gap-2 mb-4">
         <input
           type="text"
-          placeholder="Поиск..."
+          placeholder="Поиск (назв., авторы, индекс)…"
           value={searchValue}
-          onChange={(e) => setSearchValue(e.target.value)}
+          onChange={e => setSearchValue(e.target.value)}
           className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none"
         />
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={onlyAvailable}
-            onChange={(e) => setOnlyAvailable(e.target.checked)}
+            onChange={e => setOnlyAvail(e.target.checked)}
           />
           Только доступные
         </label>
       </div>
 
+      {/* таблица */}
       <div className="overflow-x-auto">
-      <table className="table-fixed w-full text-sm border-collapse border-2 border-gray-400">
+        <table className="min-w-[1200px] text-sm border-collapse border-2 border-gray-400">
           <thead className="bg-gray-100">
             <tr>
-              <th className="p-2 border-2 border-gray-400 w-40 break-words whitespace-normal">
-                Название
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-24 break-words whitespace-normal">
-                Тип
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-24 break-words whitespace-normal">
-                Редакция
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-24 break-words whitespace-normal">
-                Изд. заявление
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-32 break-words whitespace-normal">
-                Публикация
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-32 break-words whitespace-normal">
-                Физ. описание
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-24 break-words whitespace-normal">
-                Серия
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-16 break-words whitespace-normal">
-                УДК
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-16 break-words whitespace-normal">
-                ББК
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-24 break-words whitespace-normal">
-                Лок. индекс
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-32 break-words whitespace-normal">
-                Авторы
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-24 break-words whitespace-normal">
-                Статус
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-24 break-words whitespace-normal">
-                Действия
-              </th>
+              {['#','Индекс','Заголовок','Авторы','Тип','Редакция','Серия','Страницы',
+                'ББК','УДК','ББК*','УДК*','Издательство','Действия']
+                .map(h => <th key={h} className="p-2 border">{h}</th>)}
             </tr>
           </thead>
           <tbody>
-            {books.length ? (
-              books.map((b) => {
-                const available = isBookAvailable(b);
-                const expanded = expandedBookIds.includes(b.id);
+            {loading ? (
+              <tr><td colSpan={14} className="p-4 text-center">Загрузка…</td></tr>
+            ) : books.length ? (
+              books.map((book, idx) => {
+                const expanded = expandedBookIds.includes(book.id);
+                const copies   = book.bookCopies ?? [];
+
                 return (
-                  <React.Fragment key={b.id}>
+                  <React.Fragment key={book.id}>
                     <tr
-                      onClick={() => toggleExpandBook(b.id)}
+                      onClick={() => toggleExpand(book.id)}
                       className="border-b hover:bg-gray-50 cursor-pointer"
                     >
-                      <td className="p-2 border break-words whitespace-normal">
-                        {b.title || '—'}
+                      <td className="p-2 border text-center">{idx + 1 + (page - 1) * limit}</td>
+                      <td className="p-2 border">{book.localIndex ?? '—'}</td>
+                      <td className="p-2 border font-medium">{book.title ?? '—'}</td>
+                      <td className="p-2 border">{fmtAuthors(book.authors)}</td>
+                      <td className="p-2 border">{book.bookType ?? '—'}</td>
+                      <td className="p-2 border">
+                        {book.edit ?? '—'}{book.editionStatement ? `, ${book.editionStatement}` : ''}
                       </td>
-                      <td className="p-2 border break-words whitespace-normal">
-                        {b.bookType || '—'}
+                      <td className="p-2 border">{book.series ?? '—'}</td>
+                      <td className="p-2 border">{book.physDesc ?? '—'}</td>
+                      <td className="p-2 border">{fmtCodes(book.bbks)}</td>
+                      <td className="p-2 border">{fmtCodes(book.udcs)}</td>
+                      <td className="p-2 border">
+                        {fmtRawCodes<BookBbkRaw>(book.bbkRaws, 'bbkCode')}
                       </td>
-                      <td className="p-2 border break-words whitespace-normal">
-                        {b.edit || '—'}
+                      <td className="p-2 border">
+                        {fmtRawCodes<BookUdcRaw>(book.udcRaws, 'udcCode')}
                       </td>
-                      <td className="p-2 border break-words whitespace-normal">
-                        {b.editionStatement || '—'}
-                      </td>
-                      <td className="p-2 border break-words whitespace-normal">
-                        {b.pubInfo || '—'}
-                      </td>
-                      <td className="p-2 border break-words whitespace-normal">
-                        {b.physDesc || '—'}
-                      </td>
-                      <td className="p-2 border break-words whitespace-normal">
-                        {b.series || '—'}
-                      </td>
-                      <td className="p-2 border break-words whitespace-normal">
-                        {b.udc || '—'}
-                      </td>
-                      <td className="p-2 border break-words whitespace-normal">
-                        {b.bbk || '—'}
-                      </td>
-                      <td className="p-2 border break-words whitespace-normal">
-                        {b.localIndex || '—'}
-                      </td>
-                      <td className="p-2 border break-words whitespace-normal">
-                        {b.authors || '—'}
-                      </td>
-                      <td className="p-2 border break-words whitespace-normal">
-                        {available ? 'Есть в наличии' : 'Нет в наличии'}
-                      </td>
-                      <td className="p-2 border break-words whitespace-normal">
+                      <td className="p-2 border">{fmtPubPlaces(book.publicationPlaces)}</td>
+                      <td
+                        className="p-2 border text-center space-x-2"
+                        onClick={e => e.stopPropagation()}
+                      >
                         <button
-                          onClick={(e) => openEditModal(b, e)}
-                          className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium py-1 px-2 rounded mr-1"
+                          type="button"
+                          className="text-blue-600 hover:underline"
+                          onClick={() => { setSelectedBook(book); setEditVisible(true); }}
                         >
-                          Ред.
+                          Изм
                         </button>
                         <button
-                          onClick={(e) => openDeleteModal(b, e)}
-                          className="bg-red-500 hover:bg-red-600 text-white text-xs font-medium py-1 px-2 rounded"
+                          type="button"
+                          className="text-red-600 hover:underline"
+                          onClick={() => { setSelectedBook(book); setDeleteVisible(true); }}
                         >
-                          Удл.
+                          Удл
                         </button>
                       </td>
                     </tr>
-                    {expanded &&
-                      b.bookCopies?.map((c) => (
-                        <tr key={c.id}>
-                          <td colSpan={13} className="p-2 border pl-6 bg-gray-50">
-                            <strong>Экземпляр {c.id}</strong>
-                            {c.copyInfo ? `: ${c.copyInfo}` : ''}
-                            <div className="text-xs text-gray-700 mt-1">
-                              {getCopyStatus(c)}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+
+                    {expanded && copies.map(copy => (
+                      <tr key={copy.id}>
+                        <td colSpan={14} className="p-2 border pl-6 bg-gray-50">
+                          <strong>Экземпляр {copy.id}</strong>
+                          {copy.copyInfo ? `: ${copy.copyInfo}` : ''}
+                          <div className="text-xs text-gray-700 mt-1">
+                            {(copy.borrowRecords ?? []).some(r => !r.returnDate) ? 'Выдан' : 'В наличии'}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </React.Fragment>
                 );
               })
             ) : (
-              <tr>
-                <td colSpan={13} className="p-2 border text-center">
-                  Нет книг
-                </td>
-              </tr>
+              <tr><td colSpan={14} className="p-2 border text-center">Нет книг</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
+      {/* пагинация */}
       <Pagination
         page={page}
         totalPages={totalPages}
         limit={limit}
-        onPageChange={(newPage) => setPage(newPage)}
-        onLimitChange={(newLimit) => {
-          setLimit(newLimit);
-          setPage(1);
-        }}
+        onPageChange={p => { window.scrollTo({ top: 0, behavior: 'smooth' }); setPage(p); }}
+        onLimitChange={newLimit => { if (newLimit !== limit) { setLimit(newLimit); setPage(1); } }}
       />
 
-      {/* Модалки */}
-      {isEditModalOpen && selectedBookForEdit && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white p-4 rounded shadow w-96 max-w-full">
-            <h3 className="text-lg font-semibold mb-2">
-              Редактировать (ID: {selectedBookForEdit.id})
-            </h3>
-            <label className="text-sm font-medium">Название:</label>
-            <input
-              type="text"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none mt-1"
-            />
-            <div className="mt-4 space-x-2">
-              <button
-                onClick={handleEditSave}
-                className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-1 px-3 rounded"
-              >
-                Сохранить
-              </button>
-              <button
-                onClick={closeEditModal}
-                className="bg-gray-300 hover:bg-gray-400 text-black font-medium py-1 px-3 rounded"
-              >
-                Отмена
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isDeleteModalOpen && selectedBookForDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white p-4 rounded shadow w-96 max-w-full">
-            <h3 className="text-lg font-semibold mb-2">Удалить книгу?</h3>
-            <p className="text-sm mb-4">
-              {selectedBookForDelete.title} (ID: {selectedBookForDelete.id})
-            </p>
-            <div className="space-x-2">
-              <button
-                onClick={handleDelete}
-                className="bg-red-500 hover:bg-red-600 text-white font-medium py-1 px-3 rounded"
-              >
-                Удалить
-              </button>
-              <button
-                onClick={closeDeleteModal}
-                className="bg-gray-300 hover:bg-gray-400 text-black font-medium py-1 px-3 rounded"
-              >
-                Отмена
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* модалки */}
+      <EditBookModal
+        visible={editVisible}
+        book={selectedBook}
+        onClose={() => setEditVisible(false)}
+        onSaved={() => { setEditVisible(false); fetchBooks(); }}
+      />
+      <DeleteConfirmModal
+        visible={deleteVisible}
+        book={selectedBook}
+        onClose={() => setDeleteVisible(false)}
+        onDeleted={() => { setDeleteVisible(false); fetchBooks(); }}
+      />
     </div>
   );
 };

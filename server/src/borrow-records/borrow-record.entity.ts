@@ -14,9 +14,7 @@ export class BorrowRecord {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => BookCopy, (copy) => copy.borrowRecords, {
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(() => BookCopy, (copy) => copy.borrowRecords, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'book_copy_id' })
   bookCopy: BookCopy;
 
@@ -30,10 +28,13 @@ export class BorrowRecord {
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'accepted_by_user_id' })
-  acceptedByUser: User;
+  acceptedByUser: User | null;
 
-  @Column({ name: 'borrow_date', type: 'date', nullable: true })
-  borrowDate: string | null;
+  @Column({ name: 'borrow_date', type: 'date', default: () => 'CURRENT_DATE' })
+  borrowDate: string;
+
+  @Column({ name: 'due_date', type: 'date', nullable: true })
+  dueDate: string | null;
 
   @Column({ name: 'return_date', type: 'date', nullable: true })
   returnDate: string | null;
