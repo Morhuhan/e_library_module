@@ -1,97 +1,48 @@
 import {
-  Controller,
-  Get,
-  Param,
-  Query,
-  NotFoundException,
-  Post,
-  Body,
-  Put,
-  Delete,
-  ParseIntPipe,
-  ParseBoolPipe,
-  DefaultValuePipe,
-  UseGuards,
+  Body, Controller, DefaultValuePipe, Delete, Get, Param, ParseBoolPipe, ParseIntPipe,
+  Post, Put, Query, UseGuards, ValidationPipe,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { BooksService } from './books.service';
 import { Book } from './book.entity';
-import { AuthGuard } from '@nestjs/passport';
+import { UpdateBookDto } from './update-book.dto';
 
 @Controller('books')
 @UseGuards(AuthGuard('jwt'))
 export class BooksController {
-  constructor(private readonly booksService: BooksService) {}
+  constructor(private readonly books: BooksService) {}
 
-  @Get('find')
-  async findBook(
-    @Query('searchType') searchType: string,
-    @Query('query') value: string,
-  ): Promise<Book> {
-    let foundBook: Book | null = null;
-
-    switch (searchType) {
-      case 'local_index':
-        foundBook = await this.booksService.findOneByLocalIndex(value);
-        break;
-      default:
-        throw new NotFoundException('Неверный тип поиска (searchType)');
-    }
-
-    if (!foundBook) {
-      throw new NotFoundException('Книга не найдена');
-    }
-    return foundBook;
-  }
-
-  @Get()
-  findAll(): Promise<Book[]> {
-    return this.booksService.findAll();
-  }
-
+  /* -------- public endpoints -------- */
   @Get('paginated')
-  async getPaginated(
-    @Query('search') search: string = '',
+  getPaginated(
+    @Query('search') search = '',
     @Query('onlyAvailable', new DefaultValuePipe(false), ParseBoolPipe) onlyAvailable: boolean,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
-  ): Promise<{
-    data: Book[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    return this.booksService.findPaginated(search, onlyAvailable, page, limit);
+  ) {
+    return this.books.findPaginated(search, onlyAvailable, page, limit);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number): Promise<Book> {
-    return this.booksService.findOneWithRelations(id);
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.books.findOneWithRelations(id);
   }
 
   @Post()
-  create(@Body() data: Partial<Book>): Promise<Book> {
-    return this.booksService.create(data);
+  create(@Body(new ValidationPipe({ whitelist: true })) dto: Partial<Book>) {
+    return this.books.create(dto);
   }
 
   @Put(':id')
-  async update(
+  update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() data: any,
-  ): Promise<Book | null> {
-    const updated = await this.booksService.update(id, data);
-    if (!updated) throw new NotFoundException('Книга не найдена');
-    return updated;
+    @Body(new ValidationPipe({ whitelist: true })) dto: UpdateBookDto,
+  ) {
+    return this.books.update(id, dto);
   }
 
   @Delete(':id')
-  async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    try {
-      await this.booksService.remove(id);
-    } catch (error) {
-      if (error.message.includes('Нельзя удалить книгу')) {
-        throw new NotFoundException(error.message);
-      }
-      throw error;
-    }
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.books.remove(id);
   }
 }
