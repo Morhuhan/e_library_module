@@ -14,6 +14,12 @@ import { BookCopiesModule } from './book-copies/book-copies.module';
 import { PersonsModule } from './persons/persons.module';
 import { ReportsModule } from './_reports/reports.module';
 import { AdminSeeder } from './_seeders/admin.seeder';
+import { Author } from './authors/author.entity';
+import { AuthorsModule } from './authors/authors.module';
+import { Bbk } from './bbk/bbk.entity';
+import { BbkModule } from './bbk/bbk.module';
+import { UdcModule } from './udc/udc.module';
+import { PublishersModule } from './publisher/publishers.module';
 
 @Module({
   imports: [
@@ -45,6 +51,10 @@ import { AdminSeeder } from './_seeders/admin.seeder';
     BookCopiesModule,
     PersonsModule,
     ReportsModule,
+    AuthorsModule, 
+    BbkModule,
+    UdcModule,
+    PublishersModule,
   ],
   controllers: [AppController],
   providers: [AppService, AdminSeeder],

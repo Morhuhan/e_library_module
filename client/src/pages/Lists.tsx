@@ -78,7 +78,7 @@ const Lists: React.FC = () => {
         <table className="min-w-[1200px] text-sm">
           <thead className="bg-gray-100">
             <tr>
-              {['#','Индекс','Заголовок','Авторы','Тип','Редакция','Серия','Страницы',
+              {['#','Индекс','Заголовок','Авторы','Тип','Редакция','Серия','Описание',
                 'ББК','УДК','ББК*','УДК*','Издательство','Действия']
                 .map(h => <th key={h} className="p-2 border">{h}</th>)}
             </tr>
@@ -94,7 +94,11 @@ const Lists: React.FC = () => {
                   <td className="p-2 border text-center">{i + 1 + (page - 1) * limit}</td>
                   <td className="p-2 border">{b.localIndex ?? '—'}</td>
                   <td className="p-2 border font-medium">{b.title ?? '—'}</td>
-                  <td className="p-2 border">{(b.authors ?? []).map(a => a.fullName).join('; ') || '—'}</td>
+                  <td className="p-2 border">
+                  {(b.authors ?? [])
+                    .map(a => [a.firstName, a.middleName, a.lastName].filter(Boolean).join(' '))
+                    .join('; ') || '—'}
+                  </td>
                   <td className="p-2 border">{b.bookType ?? '—'}</td>
                   <td className="p-2 border">
                     {b.edit ?? '—'}{b.editionStatement ? `, ${b.editionStatement}` : ''}

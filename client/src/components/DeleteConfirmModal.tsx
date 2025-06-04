@@ -1,17 +1,11 @@
 // src/components/DeleteConfirmDialog.tsx
 import React from 'react';
 import BaseDialog from './BaseDialog.tsx';
-import type { Book } from '../utils/interfaces.tsx';
+import { Book, DeleteConfirmDialogProps } from '../utils/interfaces.tsx';
 import httpClient from '../utils/httpsClient.tsx';
 import { toast } from 'react-toastify';
 
-interface Props {
-  book: Book | null;
-  onClose: () => void;
-  onDeleted: () => void;
-}
-
-const DeleteConfirmDialog: React.FC<Props> = ({ book, onClose, onDeleted }) => {
+const DeleteConfirmDialog: React.FC<DeleteConfirmDialogProps> = ({ book, onClose, onDeleted }) => {
   const handleDelete = async () => {
     if (!book) return;
     try {
@@ -27,7 +21,7 @@ const DeleteConfirmDialog: React.FC<Props> = ({ book, onClose, onDeleted }) => {
   return (
     <BaseDialog
       open={!!book}
-      onOpenChange={v => !v && onClose()}
+      onOpenChange={(v) => !v && onClose()}
       title={`Удалить книгу №${book?.id}?`}
     >
       <p className="text-sm mb-6 text-gray-700">Действие нельзя отменить.</p>

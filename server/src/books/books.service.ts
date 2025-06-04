@@ -1,6 +1,7 @@
 import {
   Injectable,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
@@ -25,7 +26,6 @@ import { UpdateBookDto } from './update-book.dto';
 
 @Injectable()
 export class BooksService {
-  /* ---------- ctor ---------- */
   constructor(
     private readonly dataSource: DataSource,
 
@@ -40,8 +40,10 @@ export class BooksService {
     @InjectRepository(BorrowRecord) private readonly borrowRepo: Repository<BorrowRecord>,
   ) {}
 
-  /* ---------- helpers ---------- */
-  /** Базовый queryBuilder только для получения id-шек (минимум join-ов) */
+  /* ────────────────────────────────────────────────────────────────────── */
+  /*                                PAGINATION                             */
+  /* ────────────────────────────────────────────────────────────────────── */
+
   private baseIdsQuery(): SelectQueryBuilder<Book> {
     return this.bookRepo
       .createQueryBuilder('book')
@@ -50,9 +52,6 @@ export class BooksService {
       .leftJoin('bc.borrowRecords', 'br');
   }
 
-  /* ---------- публичные методы ---------- */
-
-  /** Пагинация c фильтрами */
   async findPaginated(
     search = '',
     onlyAvailable = false,
@@ -65,9 +64,11 @@ export class BooksService {
 
     if (search) {
       qb.andWhere(
-        `book.title ILIKE :s
-         OR a.full_name ILIKE :s
-         OR book.local_index ILIKE :s`,
+        `(book.title ILIKE :s
+          OR book.local_index ILIKE :s
+          OR a.last_name   ILIKE :s
+          OR a.first_name  ILIKE :s
+          OR a.middle_name ILIKE :s)`,
         { s: `%${search}%` },
       );
     }
@@ -86,7 +87,8 @@ export class BooksService {
     }
 
     const total = await qb.getCount();
-    const ids   = await qb
+
+    const ids = await qb
       .orderBy('book.id', 'ASC')
       .offset((page - 1) * limit)
       .limit(limit)
@@ -105,15 +107,19 @@ export class BooksService {
       ],
     });
 
+    const map = new Map<number, Book>(books.map(b => [b.id, b]));
     return {
-      data: ids.map(id => books.find(b => b.id === id)!),
+      data: ids.map(id => map.get(id)!),
       total,
       page,
       limit,
     };
   }
 
-  /** Получить одну книгу со всеми зависимостями */
+  /* ────────────────────────────────────────────────────────────────────── */
+  /*                             CRUD / READ                               */
+  /* ────────────────────────────────────────────────────────────────────── */
+
   async findOneWithRelations(id: number) {
     const book = await this.bookRepo.findOne({
       where: { id },
@@ -128,20 +134,34 @@ export class BooksService {
     return book;
   }
 
-  /** Создание */
   create(data: Partial<Book>) {
     return this.bookRepo.save(this.bookRepo.create(data));
   }
 
-  /** --- ГЛАВНОЕ: исправленный update --- */
+  /* ────────────────────────────────────────────────────────────────────── */
+  /*                               UPDATE                                  */
+  /* ────────────────────────────────────────────────────────────────────── */
+
   async update(id: number, dto: UpdateBookDto) {
     const qr: QueryRunner = this.dataSource.createQueryRunner();
     await qr.connect();
     await qr.startTransaction();
 
     try {
-      /* 1. Книга + связи */
+      console.log('Полученные данные для обновления:', JSON.stringify(dto, null, 2));
+
+      // Шаг 1: Найти и заблокировать только основную запись книги
       const book = await qr.manager.findOne(Book, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!book) {
+        throw new NotFoundException('Книга не найдена');
+      }
+      console.log('Найденная книга:', JSON.stringify(book, null, 2));
+
+      // Шаг 2: Подгрузить связанные данные без блокировки
+      const bookWithRelations = await qr.manager.findOne(Book, {
         where: { id },
         relations: [
           'authors', 'bbks', 'udcs',
@@ -149,113 +169,197 @@ export class BooksService {
           'publicationPlaces', 'publicationPlaces.publisher',
         ],
       });
-      if (!book) throw new NotFoundException('Книга не найдена');
-
-      /* 2. Скалярные поля */
-      (
-        ['title', 'localIndex', 'bookType', 'edit',
-         'editionStatement', 'series', 'physDesc'] as const
-      ).forEach(k => {
-        if (k in dto) (book as any)[k] = (dto as any)[k];
-      });
-
-      /* 3. Авторы */
-      if (dto.authorsNames) {
-        const authors = await Promise.all(
-          dto.authorsNames.map(async fullName => {
-            const existing = await qr.manager.findOne(Author, { where: { fullName } });
-            return existing ?? qr.manager.save(Author, { fullName });
-          }),
-        );
-        book.authors = authors;
+      if (!bookWithRelations) {
+        throw new NotFoundException('Книга не найдена');
       }
 
-      /* 4. ББК / УДК (нормализованные) */
+      // Обновление скалярных полей
+      const scalarFields = ['title', 'localIndex', 'bookType', 'edit', 'editionStatement', 'series', 'physDesc'] as const;
+      scalarFields.forEach(key => {
+        if (key in dto) {
+          (bookWithRelations as any)[key] = (dto as any)[key] ?? null;
+        }
+      });
+
+      // Обновление авторов
+      if (dto.authorsIds && dto.authorsIds.length) {
+        try {
+          const authors = await qr.manager.find(Author, {
+            where: { id: In(dto.authorsIds) },
+          });
+          console.log('Найденные авторы:', authors.map(a => a.id));
+          if (authors.length !== dto.authorsIds.length) {
+            throw new BadRequestException(`Найдено ${authors.length} авторов из ${dto.authorsIds.length}. Проверьте ID авторов.`);
+          }
+          bookWithRelations.authors = authors;
+        } catch (err) {
+          console.error('Ошибка при обновлении авторов:', err);
+          throw new BadRequestException('Ошибка при обработке авторов');
+        }
+      }
+
+      // Хелпер для нормализованных кодов (BBK/UDC)
       const syncCodes = async <T>(
         repo: Repository<T>,
         field: 'bbkAbb' | 'udcAbb',
         codes?: string[],
       ): Promise<T[] | undefined> => {
-        if (!codes) return;
-        const uniq     = [...new Set(codes.filter(Boolean))];
-        const existed  = await repo.find({ where: { [field]: In(uniq) } as any });
-        const toCreate = uniq.filter(c => !existed.find((e: any) => e[field] === c));
-        const created  = await repo.save(toCreate.map(code => ({ [field]: code } as any)));
-        return [...existed, ...created];
+        if (!codes || !codes.length) return undefined;
+        const uniqueCodes = [...new Set(codes.filter(Boolean))];
+        console.log(`Обработка кодов ${field}:`, uniqueCodes);
+        try {
+          const existed = await repo.find({ where: { [field]: In(uniqueCodes) } as any });
+          console.log(`Существующие ${field}:`, existed);
+          const toCreate = uniqueCodes.filter(c => !existed.find((e: any) => e[field] === c));
+          const created = await repo.save(toCreate.map(code => ({ [field]: code } as any)));
+          console.log(`Созданные ${field}:`, created);
+          return [...existed, ...created];
+        } catch (err) {
+          console.error(`Ошибка при обработке ${field}:`, err);
+          throw new BadRequestException(`Ошибка при обработке ${field}`);
+        }
       };
 
-      if (dto.bbkAbbs)
-        book.bbks = await syncCodes(this.bbkRepo, 'bbkAbb', dto.bbkAbbs)!;
-      if (dto.udcAbbs)
-        book.udcs = await syncCodes(this.udcRepo, 'udcAbb', dto.udcAbbs)!;
+      // Обновление BBK и UDC
+      if (dto.bbkAbbs) {
+        bookWithRelations.bbks = await syncCodes(this.bbkRepo, 'bbkAbb', dto.bbkAbbs) ?? bookWithRelations.bbks;
+      }
+      if (dto.udcAbbs) {
+        bookWithRelations.udcs = await syncCodes(this.udcRepo, 'udcAbb', dto.udcAbbs) ?? bookWithRelations.udcs;
+      }
 
-      /* 5. RAW-коды (исправление) */
+      // Обновление RAW-кодов BBK
       if (dto.bbkRawCodes) {
-        if (book.bbkRaws?.length) {
-          const toDelete = [...book.bbkRaws];
-          book.bbkRaws = [];                        // отвязали
-          await qr.manager.remove(BookBbkRaw, toDelete);
+        try {
+          if (bookWithRelations.bbkRaws?.length) {
+            console.log('Удаляемые BBK RAW-коды:', bookWithRelations.bbkRaws);
+            await qr.manager.remove(BookBbkRaw, bookWithRelations.bbkRaws);
+            bookWithRelations.bbkRaws = [];
+          }
+          bookWithRelations.bbkRaws = dto.bbkRawCodes
+            .filter(Boolean)
+            .map(code => qr.manager.create(BookBbkRaw, { book: bookWithRelations, bbkCode: code }));
+        } catch (err) {
+          console.error('Ошибка при обновлении BBK RAW-кодов:', err);
+          throw new BadRequestException('Ошибка при обработке BBK RAW-кодов');
         }
-        book.bbkRaws = dto.bbkRawCodes
-          .filter(Boolean)
-          .map(code => qr.manager.create(BookBbkRaw, { book, bbkCode: code }));
       }
 
+      // Обновление RAW-кодов UDC
       if (dto.udcRawCodes) {
-        if (book.udcRaws?.length) {
-          const toDelete = [...book.udcRaws];
-          book.udcRaws = [];                        // отвязали
-          await qr.manager.remove(BookUdcRaw, toDelete);
+        try {
+          if (bookWithRelations.udcRaws?.length) {
+            console.log('Удаляемые UDC RAW-коды:', bookWithRelations.udcRaws);
+            await qr.manager.remove(BookUdcRaw, bookWithRelations.udcRaws);
+            bookWithRelations.udcRaws = [];
+          }
+          bookWithRelations.udcRaws = dto.udcRawCodes
+            .filter(Boolean)
+            .map(code => qr.manager.create(BookUdcRaw, { book: bookWithRelations, udcCode: code }));
+        } catch (err) {
+          console.error('Ошибка при обновлении UDC RAW-кодов:', err);
+          throw new BadRequestException('Ошибка при обработке UDC RAW-кодов');
         }
-        book.udcRaws = dto.udcRawCodes
-          .filter(Boolean)
-          .map(code => qr.manager.create(BookUdcRaw, { book, udcCode: code }));
       }
 
-      /* 6. Место публикации / издатель */
+      // Обновление мест публикации
       if (dto.pubPlaces?.length) {
-        const { city, publisherName, pubYear } = dto.pubPlaces[0];
+        try {
+          const { city, publisherName, pubYear } = dto.pubPlaces[0];
+          console.log('Обработка места публикации:', { city, publisherName, pubYear });
 
-        if (book.publicationPlaces?.length) {
-          await qr.manager.remove(BookPubPlace, book.publicationPlaces);
-          book.publicationPlaces = [];
+          if (bookWithRelations.publicationPlaces?.length) {
+            console.log('Удаляемые места публикации:', bookWithRelations.publicationPlaces);
+            await qr.manager.remove(BookPubPlace, bookWithRelations.publicationPlaces);
+            bookWithRelations.publicationPlaces = [];
+          }
+
+          let publisher: Publisher | null = null;
+          if (publisherName) {
+            try {
+              publisher = await qr.manager.findOne(Publisher, { where: { name: publisherName } });
+              if (!publisher) {
+                publisher = await qr.manager.save(Publisher, { name: publisherName });
+                console.log('Создан новый издатель:', publisher);
+              }
+            } catch (err) {
+              console.error('Ошибка при обработке издателя:', err);
+              throw new BadRequestException('Ошибка при создании или поиске издателя');
+            }
+          }
+
+          const newPlace = await qr.manager.create(BookPubPlace, {
+            book: bookWithRelations,
+            city: city || null,
+            pubYear: pubYear || null,
+            publisher,
+          });
+          console.log('Создано новое место публикации:', {
+            id: newPlace.id,
+            city: newPlace.city,
+            pubYear: newPlace.pubYear,
+            publisher: newPlace.publisher ? { id: newPlace.publisher.id, name: newPlace.publisher.name } : null,
+          });
+          bookWithRelations.publicationPlaces = [newPlace];
+        } catch (err) {
+          console.error('Ошибка при обновлении места публикации:', err);
+          throw new BadRequestException('Ошибка при обработке места публикации');
         }
-
-        let publisher: Publisher | null = null;
-        if (publisherName) {
-          publisher = await qr.manager.findOne(Publisher, { where: { name: publisherName } })
-                   ?? await qr.manager.save(Publisher, { name: publisherName });
-        }
-
-        const newPlace = await qr.manager.save(BookPubPlace, {
-          book,
-          city: city || null,
-          pubYear: pubYear || null,
-          publisher,
-        });
-        book.publicationPlaces = [newPlace];
       }
 
-      /* 7. Сохраняем агрегат и фиксируем транзакцию */
-      await qr.manager.save(book);
+      // Сохранение книги
+      // Избегаем циклической сериализации, логируя только нужные поля
+      console.log('Сохранение книги:', {
+        id: bookWithRelations.id,
+        title: bookWithRelations.title,
+        localIndex: bookWithRelations.localIndex,
+        bookType: bookWithRelations.bookType,
+        edit: bookWithRelations.edit,
+        editionStatement: bookWithRelations.editionStatement,
+        physDesc: bookWithRelations.physDesc,
+        series: bookWithRelations.series,
+        authors: bookWithRelations.authors?.map(a => a.id),
+        bbks: bookWithRelations.bbks?.map(b => b.bbkAbb),
+        udcs: bookWithRelations.udcs?.map(u => u.udcAbb),
+        bbkRaws: bookWithRelations.bbkRaws?.map(b => b.bbkCode),
+        udcRaws: bookWithRelations.udcRaws?.map(u => u.udcCode),
+        publicationPlaces: bookWithRelations.publicationPlaces?.map(p => ({
+          id: p.id,
+          city: p.city,
+          pubYear: p.pubYear,
+          publisher: p.publisher ? { id: p.publisher.id, name: p.publisher.name } : null,
+        })),
+      });
+      await qr.manager.save(Book, bookWithRelations);
       await qr.commitTransaction();
-      return this.findOneWithRelations(id);
+
+      // Возвращаем обновлённую книгу с отношениями
+      return await this.findOneWithRelations(id);
     } catch (err) {
       await qr.rollbackTransaction();
-      throw err;
+      console.error('Ошибка в методе update:', err);
+      throw err instanceof NotFoundException || err instanceof BadRequestException
+        ? err
+        : new BadRequestException('Ошибка при обновлении книги');
     } finally {
       await qr.release();
     }
   }
 
-  /** Удаление */
+  /* ────────────────────────────────────────────────────────────────────── */
+  /*                                 DELETE                                */
+  /* ────────────────────────────────────────────────────────────────────── */
+
   async remove(id: number) {
     const exists = await this.bookRepo.exist({ where: { id } });
     if (!exists) throw new NotFoundException('Книга не найдена');
     await this.bookRepo.delete(id);
   }
 
-  /** Поиск по локальному индексу */
+  /* ────────────────────────────────────────────────────────────────────── */
+  /*                        find by local index helper                     */
+  /* ────────────────────────────────────────────────────────────────────── */
+
   findOneByLocalIndex(localIndex: string) {
     return this.bookRepo.findOne({
       where: { localIndex },

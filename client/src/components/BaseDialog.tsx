@@ -1,16 +1,10 @@
+// src/components/BaseDialog.tsx
 import * as Dialog from '@radix-ui/react-dialog';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
+import { BaseDialogProps } from '../utils/interfaces.tsx';
 
-interface Props {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  title: string;
-  children: React.ReactNode;
-  widthClass?: string;
-}
-
-const BaseDialog: React.FC<Props> = ({
+const BaseDialog: React.FC<BaseDialogProps> = ({
   open,
   onOpenChange,
   title,

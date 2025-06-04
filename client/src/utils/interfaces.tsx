@@ -1,3 +1,7 @@
+// src/utils/interfaces.tsx
+import { z } from 'zod';
+import { ReactNode } from 'react';
+
 /* ---------- базовые ---------- */
 export interface User {
   id: number;
@@ -33,45 +37,41 @@ export interface ErrorResponse {
 }
 
 /* ---------- доменные ---------- */
-/* src/types/author.ts */
 export interface Author {
   id: number;
-  fullName: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  birthYear: number | null;
 }
 
-/* src/types/bbk.ts */
 export interface Bbk {
   id: number;
   bbkAbb: string;
   description: string | null;
 }
 
-/* src/types/udc.ts */
 export interface Udc {
   id: number;
   udcAbb: string;
   description: string | null;
 }
 
-/* src/types/bbkRaw.ts */
 export interface BookBbkRaw {
   bookId: number;
   bbkCode: string;
 }
 
-/* src/types/udcRaw.ts */
 export interface BookUdcRaw {
   bookId: number;
   udcCode: string;
 }
 
-/* src/types/publisher.ts */
 export interface Publisher {
   id: number;
   name: string;
 }
 
-/* src/types/bookPubPlace.ts */
 export interface BookPubPlace {
   id: number;
   bookId: number;
@@ -80,15 +80,13 @@ export interface BookPubPlace {
   pubYear: number | null;
 }
 
-/* src/types/bookCopy.ts */
 export interface BookCopy {
   id: number;
   copyInfo: string | null;
-  book: Book;                 // forward ref
+  book: Book;
   borrowRecords?: BorrowRecord[];
 }
 
-/* src/types/borrowRecord.ts */
 export interface BorrowRecord {
   id: number;
   borrowDate: string;
@@ -100,7 +98,6 @@ export interface BorrowRecord {
   bookCopy: BookCopy;
 }
 
-/* src/types/book.ts */
 export interface Book {
   id: number;
   title: string | null;
@@ -110,15 +107,63 @@ export interface Book {
   physDesc: string | null;
   series: string | null;
   localIndex: string | null;
-
   authors: Author[] | null;
   bbks: Bbk[] | null;
   udcs: Udc[] | null;
-
-  /** старые классификаторы */
   bbkRaws: BookBbkRaw[] | null;
   udcRaws: BookUdcRaw[] | null;
-
   bookCopies: BookCopy[] | null;
   publicationPlaces: BookPubPlace[] | null;
 }
+
+/* ---------- для компонентов ---------- */
+export interface AuthorChipProps {
+  name: string;
+  onRemove: () => void;
+}
+
+export interface BaseDialogProps {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  title: string;
+  children: ReactNode;
+  widthClass?: string;
+}
+
+export interface DeleteConfirmDialogProps {
+  book: Book | null;
+  onClose: () => void;
+  onDeleted: () => void;
+}
+
+export interface AddAuthorDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onPick: (author: Author) => void;
+}
+
+export interface EditBookModalProps {
+  book: Book | null;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+export const bookSchema = z.object({
+  title: z.string().optional(),
+  localIndex: z.string().optional(),
+  bookType: z.string().optional(),
+  edit: z.string().optional(),
+  editionStatement: z.string().optional(),
+  series: z.string().optional(),
+  physDesc: z.string().optional(),
+  authors: z.string().optional(),
+  bbkAbbs: z.string().optional(),
+  udcAbbs: z.string().optional(),
+  bbkRaw: z.string().optional(),
+  udcRaw: z.string().optional(),
+  pubCity: z.string().optional(),
+  pubName: z.string().optional(),
+  pubYear: z.string().optional(),
+});
+
+export type FormValues = z.infer<typeof bookSchema>;
