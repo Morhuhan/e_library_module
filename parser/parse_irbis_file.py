@@ -22,7 +22,6 @@ from datetime import datetime
 
 from fix_bbk import load_bbk_map, filter_links as filter_bbk_links
 from fix_udc import load_udc_map, filter_links as filter_udc_links
-from fix_phys_desc import clean_phys_desc
 from fix_pub_info import parse_pub_info
 from fix_authors import normalize_author
 
@@ -178,8 +177,7 @@ def parse_irbis_file(dsn: str, infile: str, outfile: str) -> None:
                     elif tag_number == '910':
                         copies.append(content.strip())
 
-                # ----------- «хвосты»: физ.опис. и издательство ----------
-                phys_desc, series_ = clean_phys_desc(phys_desc, series_)
+                # ----------- «хвосты»: издательство ---------------------
                 publisher_name, pub_city, pub_year = parse_pub_info(pub_info_raw)
 
                 # ----------- publisher ----------------------------------

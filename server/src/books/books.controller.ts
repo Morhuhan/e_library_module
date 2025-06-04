@@ -15,12 +15,18 @@ export class BooksController {
   /* -------- public endpoints -------- */
   @Get('paginated')
   getPaginated(
-    @Query('search') search = '',
-    @Query('onlyAvailable', new DefaultValuePipe(false), ParseBoolPipe) onlyAvailable: boolean,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('search')         search       = '',
+    @Query('searchColumn')   searchColumn = '',
+    @Query('onlyAvailable',  new DefaultValuePipe(false), ParseBoolPipe)
+                              onlyAvailable: boolean,
+    @Query('page',   new DefaultValuePipe(1),  ParseIntPipe) page  : number,
+    @Query('limit',  new DefaultValuePipe(10), ParseIntPipe) limit : number,
+    /** строка вида  title.asc,localIndex.desc  */
+    @Query('sort')           sort         = '',
   ) {
-    return this.books.findPaginated(search, onlyAvailable, page, limit);
+    return this.books.findPaginated(
+      search, searchColumn, onlyAvailable, page, limit, sort,
+    );
   }
 
   @Get(':id')

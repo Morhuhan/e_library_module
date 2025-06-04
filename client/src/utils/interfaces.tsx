@@ -163,7 +163,7 @@ export const bookSchema = z.object({
   udcRaw: z.string().optional(),
   pubCity: z.string().optional(),
   pubName: z.string().optional(),
-  pubYear: z.string().optional(),
+  pubYear: z.number().optional(),
 });
 
 export type FormValues = z.infer<typeof bookSchema>;

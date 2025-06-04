@@ -97,8 +97,7 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
         .join(', '),
       pubCity: fullBook.publicationPlaces?.[0]?.city ?? '',
       pubName: fullBook.publicationPlaces?.[0]?.publisher?.name ?? '',
-      pubYear:
-        fullBook.publicationPlaces?.[0]?.pubYear?.toString() ?? '',
+      pubYear: fullBook.publicationPlaces?.[0]?.pubYear ?? undefined,
     });
 
     setAuthorsList(fullBook.authors ?? []);
@@ -243,7 +242,7 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
               { name: 'localIndex', label: 'Индекс' },
               { name: 'bookType', label: 'Тип' },
               { name: 'edit', label: 'Редактор' },
-              { name: 'editionStatement', label: 'Сведения об издании' },
+              { name: 'editionStatement', label: 'Сведения об изд.' },
               { name: 'series', label: 'Серия' },
               { name: 'physDesc', label: 'Описание (страницы, иллюстрации и т.д.)' },
             ] as const

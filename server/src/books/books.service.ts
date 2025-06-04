@@ -1,3 +1,4 @@
+// src/books/books.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -40,38 +41,78 @@ export class BooksService {
     @InjectRepository(BorrowRecord) private readonly borrowRepo: Repository<BorrowRecord>,
   ) {}
 
-  /* ────────────────────────────────────────────────────────────────────── */
-  /*                                PAGINATION                             */
-  /* ────────────────────────────────────────────────────────────────────── */
-
   private baseIdsQuery(): SelectQueryBuilder<Book> {
     return this.bookRepo
       .createQueryBuilder('book')
-      .leftJoin('book.authors', 'a')
-      .leftJoin('book.bookCopies', 'bc')
-      .leftJoin('bc.borrowRecords', 'br');
+      .leftJoin('book.authors',         'a')
+      .leftJoin('book.bbks',            'bbk')
+      .leftJoin('book.udcs',            'udc')
+      .leftJoin('book.bbkRaws',         'bbr')
+      .leftJoin('book.udcRaws',         'udr')
+      .leftJoin('book.publicationPlaces','pp')
+      .leftJoin('pp.publisher',         'pub')
+      .leftJoin('book.bookCopies',      'bc')
+      .leftJoin('bc.borrowRecords',     'br');
   }
 
   async findPaginated(
     search = '',
+    searchColumn = '',
     onlyAvailable = false,
     page = 1,
     limit = 10,
+    sort = '',
   ): Promise<{ data: Book[]; total: number; page: number; limit: number }> {
     const qb = this.baseIdsQuery()
       .select('book.id', 'id')
       .groupBy('book.id');
 
-    if (search) {
+  if (search) {
+    const colMap: Record<string, string> = {
+      localIndex: 'book.local_index',
+      title:      'book.title',
+      authors:    "concat_ws(' ', a.last_name, a.first_name, a.middle_name)",
+      bookType:   'book.type',
+      edit:       'book.edit',
+      series:     'book.series',
+      physDesc:   'book.phys_desc',
+      bbks:       "string_agg(distinct bbk.bbk_abb, ',')",
+      udcs:       "string_agg(distinct udc.udc_abb, ',')",
+      bbkRaws:    "string_agg(distinct bbr.bbk_code, ',')",
+      udcRaws:    "string_agg(distinct udr.udc_code, ',')",
+      publicationPlaces:
+        "string_agg(distinct concat_ws(' ', pp.city, pub.name, pp.pub_year), ',')",
+    };
+
+    if (searchColumn && colMap[searchColumn]) {
+      const expr = colMap[searchColumn];
+      const param = { s: `%${search}%` };
+
+      // простая эвристика: если в выражении есть агрегат — используем HAVING
+      const usesAggregate = /string_agg|count|sum|min|max|avg/i.test(expr);
+
+      if (usesAggregate) {
+        qb.andHaving(`${expr} ILIKE :s`, param);
+      } else {
+        qb.andWhere(`${expr} ILIKE :s`, param);
+      }
+    } else {
+      // общий полнотекстовый поиск без изменения
       qb.andWhere(
         `(book.title ILIKE :s
           OR book.local_index ILIKE :s
+          OR book.phys_desc ILIKE :s
+          OR book.series ILIKE :s
+          OR book.edit  ILIKE :s
           OR a.last_name   ILIKE :s
           OR a.first_name  ILIKE :s
           OR a.middle_name ILIKE :s)`,
         { s: `%${search}%` },
       );
+
+      console.log('Запрос после добавления условия поиска:', qb.getQueryAndParameters());
     }
+  }
 
     if (onlyAvailable) {
       qb.andWhere(`
@@ -80,22 +121,52 @@ export class BooksService {
             FROM book_copy bc2
             JOIN borrow_record br2
               ON br2.book_copy_id = bc2.id
-             AND br2.return_date IS NULL
-           WHERE bc2.book_id = book.id
+            AND br2.return_date IS NULL
+          WHERE bc2.book_id = book.id
         )
       `);
     }
 
-    const total = await qb.getCount();
+    const allowed: Record<string, { col: string; type: 'text' | 'number' }> = {
+      localIndex:        { col: 'MIN(book.local_index)', type: 'text' },
+      title:             { col: 'MIN(book.title)',       type: 'text' },
+      authors:           { col: "string_agg(DISTINCT a.last_name, ',')", type: 'text' },
+      bookType:          { col: 'MIN(book.type)',        type: 'text' },
+      edit:              { col: 'MIN(book.edit)',        type: 'text' },
+      series:            { col: 'MIN(book.series)',      type: 'text' },
+      physDesc:          { col: 'MIN(book.phys_desc)',   type: 'text' },
+      bbks:              { col: "string_agg(DISTINCT bbk.bbk_abb, ',')",  type: 'text' },
+      udcs:              { col: "string_agg(DISTINCT udc.udc_abb, ',')",  type: 'text' },
+      bbkRaws:           { col: "string_agg(DISTINCT bbr.bbk_code, ',')", type: 'text' },
+      udcRaws:           { col: "string_agg(DISTINCT udr.udc_code, ',')", type: 'text' },
+      publicationPlaces: { col: "string_agg(DISTINCT concat_ws(' ', pp.city, pub.name, pp.pub_year), ',')", type: 'text' },
+      id:                { col: 'book.id', type: 'number' },
+    };
 
+    const [singleField, ordRaw] = sort.split('.');
+    if (allowed[singleField]) {
+      const { col, type } = allowed[singleField];
+      const order: 'ASC' | 'DESC' = ordRaw === 'desc' ? 'DESC' : 'ASC';
+      if (type === 'text') {
+        qb.orderBy(`CASE WHEN ${col} ~ '^[A-ZА-Я]' THEN 0 ELSE 1 END`, 'ASC')
+          .addOrderBy(`LOWER(${col})`, order);
+      } else {
+        qb.orderBy(col, order);
+      }
+    } else {
+      qb.orderBy('book.id', 'ASC');
+    }
+
+    const total = await qb.getCount();
     const ids = await qb
-      .orderBy('book.id', 'ASC')
       .offset((page - 1) * limit)
       .limit(limit)
       .getRawMany<{ id: number }>()
       .then(rows => rows.map(r => r.id));
 
-    if (!ids.length) return { data: [], total, page, limit };
+    if (!ids.length) {
+      return { data: [], total, page, limit };
+    }
 
     const books = await this.bookRepo.find({
       where: { id: In(ids) },
@@ -108,17 +179,15 @@ export class BooksService {
     });
 
     const map = new Map<number, Book>(books.map(b => [b.id, b]));
-    return {
+    const result = {
       data: ids.map(id => map.get(id)!),
       total,
       page,
       limit,
     };
-  }
 
-  /* ────────────────────────────────────────────────────────────────────── */
-  /*                             CRUD / READ                               */
-  /* ────────────────────────────────────────────────────────────────────── */
+    return result;
+  }
 
   async findOneWithRelations(id: number) {
     const book = await this.bookRepo.findOne({
@@ -148,8 +217,6 @@ export class BooksService {
     await qr.startTransaction();
 
     try {
-      console.log('Полученные данные для обновления:', JSON.stringify(dto, null, 2));
-
       // Шаг 1: Найти и заблокировать только основную запись книги
       const book = await qr.manager.findOne(Book, {
         where: { id },
@@ -158,7 +225,6 @@ export class BooksService {
       if (!book) {
         throw new NotFoundException('Книга не найдена');
       }
-      console.log('Найденная книга:', JSON.stringify(book, null, 2));
 
       // Шаг 2: Подгрузить связанные данные без блокировки
       const bookWithRelations = await qr.manager.findOne(Book, {
@@ -187,7 +253,6 @@ export class BooksService {
           const authors = await qr.manager.find(Author, {
             where: { id: In(dto.authorsIds) },
           });
-          console.log('Найденные авторы:', authors.map(a => a.id));
           if (authors.length !== dto.authorsIds.length) {
             throw new BadRequestException(`Найдено ${authors.length} авторов из ${dto.authorsIds.length}. Проверьте ID авторов.`);
           }
@@ -206,13 +271,10 @@ export class BooksService {
       ): Promise<T[] | undefined> => {
         if (!codes || !codes.length) return undefined;
         const uniqueCodes = [...new Set(codes.filter(Boolean))];
-        console.log(`Обработка кодов ${field}:`, uniqueCodes);
         try {
           const existed = await repo.find({ where: { [field]: In(uniqueCodes) } as any });
-          console.log(`Существующие ${field}:`, existed);
           const toCreate = uniqueCodes.filter(c => !existed.find((e: any) => e[field] === c));
           const created = await repo.save(toCreate.map(code => ({ [field]: code } as any)));
-          console.log(`Созданные ${field}:`, created);
           return [...existed, ...created];
         } catch (err) {
           console.error(`Ошибка при обработке ${field}:`, err);
@@ -232,7 +294,6 @@ export class BooksService {
       if (dto.bbkRawCodes) {
         try {
           if (bookWithRelations.bbkRaws?.length) {
-            console.log('Удаляемые BBK RAW-коды:', bookWithRelations.bbkRaws);
             await qr.manager.remove(BookBbkRaw, bookWithRelations.bbkRaws);
             bookWithRelations.bbkRaws = [];
           }
@@ -249,7 +310,6 @@ export class BooksService {
       if (dto.udcRawCodes) {
         try {
           if (bookWithRelations.udcRaws?.length) {
-            console.log('Удаляемые UDC RAW-коды:', bookWithRelations.udcRaws);
             await qr.manager.remove(BookUdcRaw, bookWithRelations.udcRaws);
             bookWithRelations.udcRaws = [];
           }
@@ -266,10 +326,8 @@ export class BooksService {
       if (dto.pubPlaces?.length) {
         try {
           const { city, publisherName, pubYear } = dto.pubPlaces[0];
-          console.log('Обработка места публикации:', { city, publisherName, pubYear });
 
           if (bookWithRelations.publicationPlaces?.length) {
-            console.log('Удаляемые места публикации:', bookWithRelations.publicationPlaces);
             await qr.manager.remove(BookPubPlace, bookWithRelations.publicationPlaces);
             bookWithRelations.publicationPlaces = [];
           }
@@ -280,7 +338,6 @@ export class BooksService {
               publisher = await qr.manager.findOne(Publisher, { where: { name: publisherName } });
               if (!publisher) {
                 publisher = await qr.manager.save(Publisher, { name: publisherName });
-                console.log('Создан новый издатель:', publisher);
               }
             } catch (err) {
               console.error('Ошибка при обработке издателя:', err);
@@ -294,12 +351,6 @@ export class BooksService {
             pubYear: pubYear || null,
             publisher,
           });
-          console.log('Создано новое место публикации:', {
-            id: newPlace.id,
-            city: newPlace.city,
-            pubYear: newPlace.pubYear,
-            publisher: newPlace.publisher ? { id: newPlace.publisher.id, name: newPlace.publisher.name } : null,
-          });
           bookWithRelations.publicationPlaces = [newPlace];
         } catch (err) {
           console.error('Ошибка при обновлении места публикации:', err);
@@ -307,29 +358,6 @@ export class BooksService {
         }
       }
 
-      // Сохранение книги
-      // Избегаем циклической сериализации, логируя только нужные поля
-      console.log('Сохранение книги:', {
-        id: bookWithRelations.id,
-        title: bookWithRelations.title,
-        localIndex: bookWithRelations.localIndex,
-        bookType: bookWithRelations.bookType,
-        edit: bookWithRelations.edit,
-        editionStatement: bookWithRelations.editionStatement,
-        physDesc: bookWithRelations.physDesc,
-        series: bookWithRelations.series,
-        authors: bookWithRelations.authors?.map(a => a.id),
-        bbks: bookWithRelations.bbks?.map(b => b.bbkAbb),
-        udcs: bookWithRelations.udcs?.map(u => u.udcAbb),
-        bbkRaws: bookWithRelations.bbkRaws?.map(b => b.bbkCode),
-        udcRaws: bookWithRelations.udcRaws?.map(u => u.udcCode),
-        publicationPlaces: bookWithRelations.publicationPlaces?.map(p => ({
-          id: p.id,
-          city: p.city,
-          pubYear: p.pubYear,
-          publisher: p.publisher ? { id: p.publisher.id, name: p.publisher.name } : null,
-        })),
-      });
       await qr.manager.save(Book, bookWithRelations);
       await qr.commitTransaction();
 
