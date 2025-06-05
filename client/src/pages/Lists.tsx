@@ -1,4 +1,9 @@
-import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  ChangeEvent,
+} from 'react';
 import clsx from 'clsx';
 import type { Book, PaginatedResponse } from '../utils/interfaces';
 import Pagination from '../components/Pagination.tsx';
@@ -32,7 +37,9 @@ const Lists: React.FC = () => {
     useState<(typeof COLUMNS)[number]['key']>(COLUMNS[0].key);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState<typeof LIMIT_OPTIONS[number]>(LIMIT_OPTIONS[0]);
+  const [limit, setLimit] = useState<typeof LIMIT_OPTIONS[number]>(
+    LIMIT_OPTIONS[0],
+  );
   const [sort, setSort] = useState<SortState>(null);
 
   const [data, setData] = useState<PaginatedResponse<Book> | null>(null);
@@ -43,6 +50,9 @@ const Lists: React.FC = () => {
   const [editing, setEditing] = useState<Book | null>(null);
   const [deleting, setDeleting] = useState<Book | null>(null);
 
+  /** id раскрытой книги (или null, если ни одна не раскрыта) */
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
   const cycleSortState = useCallback((field: string) => {
     setSort(prev => {
       if (!prev || prev.field !== field) return { field, order: 'asc' };
@@ -51,6 +61,16 @@ const Lists: React.FC = () => {
     });
     setPage(1);
   }, []);
+
+  /** раскрываем/сворачиваем строку, если пользователь НЕ выделял текст */
+  const handleRowClick = (bookId: number) => {
+    const sel = window.getSelection();
+    if (sel && sel.toString().length) return; // есть выделение — игнорируем
+    setExpandedId(prev => (prev === bookId ? null : bookId));
+  };
+
+  /** чтобы кнопки «Изм/Удл» не триггерили раскрытие строки */
+  const stopPropagation = (e: React.MouseEvent) => e.stopPropagation();
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -68,7 +88,7 @@ const Lists: React.FC = () => {
 
         const { data } = await httpClient.get<PaginatedResponse<Book>>(
           `/books/paginated?${p.toString()}`,
-          { signal: ctrl.signal }
+          { signal: ctrl.signal },
         );
         setData(data);
       } catch (err: any) {
@@ -118,6 +138,7 @@ const Lists: React.FC = () => {
         </div>
       )}
 
+      {/* ───── Фильтры поиска ───── */}
       <div className="flex flex-col sm:flex-row items-center gap-2 mb-4">
         <select
           value={searchColumn}
@@ -128,7 +149,9 @@ const Lists: React.FC = () => {
           className="border rounded px-2 py-1 text-sm"
         >
           {COLUMNS.map(c => (
-            <option key={c.key} value={c.key}>{c.label}</option>
+            <option key={c.key} value={c.key}>
+              {c.label}
+            </option>
           ))}
         </select>
 
@@ -156,6 +179,7 @@ const Lists: React.FC = () => {
         </label>
       </div>
 
+      {/* ───── Таблица книг ───── */}
       <div className="overflow-x-auto border rounded">
         <table className="min-w-[1200px] text-sm">
           <thead className="bg-gray-100 select-none">
@@ -180,81 +204,176 @@ const Lists: React.FC = () => {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={COLUMNS.length + 2} className="p-4 text-center">
+                <td
+                  colSpan={COLUMNS.length + 2}
+                  className="p-4 text-center"
+                >
                   Загрузка…
                 </td>
               </tr>
             ) : !data || !data.data.length ? (
               <tr>
-                <td colSpan={COLUMNS.length + 2} className="p-4 text-center">
+                <td
+                  colSpan={COLUMNS.length + 2}
+                  className="p-4 text-center"
+                >
                   Нет книг
                 </td>
               </tr>
             ) : (
               data.data.map((b, i) => (
-                <tr key={b.id} className="hover:bg-gray-50">
-                  <td className="p-2 border text-center">
-                    {i + 1 + (page - 1) * limit}
-                  </td>
-                  <td className="p-2 border">{b.localIndex ?? '—'}</td>
-                  <td className="p-2 border font-medium">{b.title ?? '—'}</td>
-                  <td className="p-2 border">
-                    {(b.authors ?? [])
-                      .map(a => [a.firstName, a.middleName, a.lastName]
-                        .filter(Boolean).join(' '))
-                      .join('; ') || '—'}
-                  </td>
-                  <td className="p-2 border">{b.bookType ?? '—'}</td>
-                  <td className="p-2 border">
-                    {b.edit ?? '—'}{b.editionStatement ? `, ${b.editionStatement}` : ''}
-                  </td>
-                  <td className="p-2 border">{b.series ?? '—'}</td>
-                  <td className="p-2 border">{b.physDesc ?? '—'}</td>
-                  <td className="p-2 border">
-                    {(b.bbks ?? []).map(x => x.bbkAbb).join(', ') || '—'}
-                  </td>
-                  <td className="p-2 border">
-                    {(b.udcs ?? []).map(x => x.udcAbb).join(', ') || '—'}
-                  </td>
-                  <td className="p-2 border">
-                    {(b.bbkRaws ?? []).map(x => x.bbkCode).join(', ') || '—'}
-                  </td>
-                  <td className="p-2 border">
-                    {(b.udcRaws ?? []).map(x => x.udcCode).join(', ') || '—'}
-                  </td>
-                  <td className="p-2 border">
-                    {(b.publicationPlaces ?? [])
-                      .map(p => [p.city, p.publisher?.name, p.pubYear]
-                        .filter(Boolean).join(', '))
-                      .join('; ') || '—'}
-                  </td>
-                  <td className="p-2 border text-center space-x-2 whitespace-nowrap">
-                    <button
-                      className="text-blue-600 hover:underline"
-                      onClick={() => setEditing(b)}
-                    >Изм</button>
-                    <button
-                      className="text-red-600 hover:underline"
-                      onClick={() => setDeleting(b)}
-                    >Удл</button>
-                  </td>
-                </tr>
+                <React.Fragment key={b.id}>
+                  {/* ───── Основная строка ───── */}
+                  <tr
+                    className="hover:bg-gray-200 cursor-pointer"
+                    onClick={() => handleRowClick(b.id)}
+                  >
+                    <td className="p-2 border text-center">
+                      {i + 1 + (page - 1) * limit}
+                    </td>
+                    <td className="p-2 border">
+                      {b.localIndex ?? '—'}
+                    </td>
+                    <td className="p-2 border font-medium">
+                      {b.title ?? '—'}
+                    </td>
+                    <td className="p-2 border">
+                      {(b.authors ?? [])
+                        .map(a =>
+                          [a.firstName, a.middleName, a.lastName]
+                            .filter(Boolean)
+                            .join(' '),
+                        )
+                        .join('; ') || '—'}
+                    </td>
+                    <td className="p-2 border">{b.bookType ?? '—'}</td>
+                    <td className="p-2 border">
+                      {b.edit ?? '—'}
+                      {b.editionStatement
+                        ? `, ${b.editionStatement}`
+                        : ''}
+                    </td>
+                    <td className="p-2 border">{b.series ?? '—'}</td>
+                    <td className="p-2 border">{b.physDesc ?? '—'}</td>
+                    <td className="p-2 border">
+                      {(b.bbks ?? []).map(x => x.bbkAbb).join(', ') || '—'}
+                    </td>
+                    <td className="p-2 border">
+                      {(b.udcs ?? []).map(x => x.udcAbb).join(', ') || '—'}
+                    </td>
+                    <td className="p-2 border">
+                      {(b.bbkRaws ?? [])
+                        .map(x => x.bbkCode)
+                        .join(', ') || '—'}
+                    </td>
+                    <td className="p-2 border">
+                      {(b.udcRaws ?? [])
+                        .map(x => x.udcCode)
+                        .join(', ') || '—'}
+                    </td>
+                    <td className="p-2 border">
+                      {(b.publicationPlaces ?? [])
+                        .map(p =>
+                          [p.city, p.publisher?.name, p.pubYear]
+                            .filter(Boolean)
+                            .join(', '),
+                        )
+                        .join('; ') || '—'}
+                    </td>
+                    <td className="p-2 border text-center space-x-2 whitespace-nowrap">
+                      <button
+                        className="text-blue-600 hover:underline"
+                        onClick={e => {
+                          stopPropagation(e);
+                          setEditing(b);
+                        }}
+                      >
+                        Изм
+                      </button>
+                      <button
+                        className="text-red-600 hover:underline"
+                        onClick={e => {
+                          stopPropagation(e);
+                          setDeleting(b);
+                        }}
+                      >
+                        Удл
+                      </button>
+                    </td>
+                  </tr>
+
+                  {/* ───── Подстрока с экземплярами ───── */}
+                  {expandedId === b.id && (
+                    <tr className="bg-blue-100">
+                      <td colSpan={COLUMNS.length + 2} className="p-0">
+                        <table className="w-full text-xs">
+                          <thead className="bg-blue-200">
+                            <tr>
+                              <th className="p-2 border w-24">id</th>
+                              <th className="p-2 border">Описание экземпляра</th>
+                              <th className="p-2 border w-28">Статус</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(b.bookCopies ?? []).map(c => {
+                              const issued =
+                                (c.borrowRecords ?? []).length > 0;
+                              return (
+                                <tr key={c.id}>
+                                  <td className="p-2 border text-center">
+                                    {c.id}
+                                  </td>
+                                  <td className="p-2 border whitespace-pre-wrap">
+                                    {c.copyInfo}
+                                  </td>
+                                  <td
+                                    className={clsx(
+                                      'p-2 border text-center',
+                                      issued
+                                        ? 'text-red-600'
+                                        : 'text-green-600',
+                                    )}
+                                  >
+                                    {issued ? 'выдан' : 'в наличии'}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))
             )}
           </tbody>
         </table>
       </div>
 
+      {/* ───── Пагинация ───── */}
       <Pagination
         page={page}
         totalPages={totalPages}
         limit={limit}
         onPageChange={setPage}
-        onLimitChange={l => { setLimit(l as typeof limit); setPage(1); }}
+        onLimitChange={l => {
+          setLimit(l as typeof limit);
+          setPage(1);
+        }}
       />
 
-      <EditBookModal book={editing} onClose={() => setEditing(null)} onSaved={onSaved} />
-      <DeleteConfirmModal book={deleting} onClose={() => setDeleting(null)} onDeleted={onDeleted} />
+      {/* ───── Модальные окна ───── */}
+      <EditBookModal
+        book={editing}
+        onClose={() => setEditing(null)}
+        onSaved={onSaved}
+      />
+      <DeleteConfirmModal
+        book={deleting}
+        onClose={() => setDeleting(null)}
+        onDeleted={onDeleted}
+      />
     </div>
   );
 };
