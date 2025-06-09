@@ -108,7 +108,6 @@ export interface Book {
   editionStatement: string | null;
   physDesc: string | null;
   series: string | null;
-  localIndex: string | null;
   authors: Author[] | null;
   bbks: Bbk[] | null;
   udcs: Udc[] | null;
@@ -152,7 +151,6 @@ export interface EditBookModalProps {
 
 export const bookSchema = z.object({
   title: z.string().optional(),
-  localIndex: z.string().optional(),
   bookType: z.string().optional(),
   edit: z.string().optional(),
   editionStatement: z.string().optional(),

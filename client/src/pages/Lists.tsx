@@ -9,7 +9,6 @@ import DeleteConfirmModal from '../components/DeleteConfirmModal.tsx';
 const LIMIT_OPTIONS = [10, 20, 50] as const;
 
 const COLUMNS = [
-  { key: 'localIndex', label: 'Индекс' },
   { key: 'title', label: 'Название' },
   { key: 'authors', label: 'Авторы' },
   { key: 'bookType', label: 'Тип' },
@@ -211,7 +210,6 @@ const Lists: React.FC = () => {
                       <td className="p-2 border text-center">
                         {i + 1 + (page - 1) * limit}
                       </td>
-                      <td className="p-2 border">{b.localIndex ?? '—'}</td>
                       <td className="p-2 border font-medium">{b.title ?? '—'}</td>
                       <td className="p-2 border">
                         {(b.authors ?? [])

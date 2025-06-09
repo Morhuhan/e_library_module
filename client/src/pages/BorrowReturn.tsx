@@ -10,7 +10,6 @@ type ActionType = 'borrow' | 'return';
 
 /* ─── Колонки, по которым можно искать ─── */
 const COLUMNS = [
-  { key: 'localIndex', label: 'Индекс' },
   { key: 'title', label: 'Название' },
   { key: 'authors', label: 'Авторы' },
   { key: 'bookType', label: 'Тип' },
@@ -32,7 +31,7 @@ const BorrowReturn: React.FC = () => {
   /* --------------------------- Состояния -------------------------- */
   const [actionType, setActionType] = useState<ActionType>('borrow');
   const [rawSearch, setRawSearch] = useState('');
-  const [searchColumn, setSearchColumn] = useState<SearchColumn>('localIndex');
+  const [searchColumn, setSearchColumn] = useState<SearchColumn>('title');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
@@ -177,7 +176,6 @@ const BorrowReturn: React.FC = () => {
                 {b.title || '(без названия)'}
               </h4>
               <p className="text-xs mb-1">{fmtAuthors(b.authors)}</p>
-              <p className="text-xs">Индекс: {b.localIndex || '—'}</p>
             </div>
           ))}
         </div>

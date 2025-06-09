@@ -114,9 +114,6 @@ const BorrowDetailsModal: React.FC<Props> = ({
             <dt className="font-medium">Название:</dt>
             <dd>{book.title || dash}</dd>
 
-            <dt className="font-medium">Индекс:</dt>
-            <dd>{book.localIndex || dash}</dd>
-
             <dt className="font-medium">Тип:</dt>
             <dd>{book.bookType || dash}</dd>
 

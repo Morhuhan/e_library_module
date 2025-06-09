@@ -1,4 +1,3 @@
-// src/books/books.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -55,84 +54,82 @@ export class BooksService {
       .leftJoin('bc.borrowRecords',     'br');
   }
 
-async findPaginated(
-  search = '',
-  searchColumn = '',
-  onlyAvailable = false,
-  onlyIssued    = false,
-  page = 1,
-  limit = 10,
-  sort = '',
-): Promise<{ data: Book[]; total: number; page: number; limit: number }> {
+  async findPaginated(
+    search = '',
+    searchColumn = '',
+    onlyAvailable = false,
+    onlyIssued = false,
+    page = 1,
+    limit = 10,
+    sort = '',
+  ): Promise<{ data: Book[]; total: number; page: number; limit: number }> {
 
-  if (onlyAvailable && onlyIssued) {
-    throw new BadRequestException(
-      'Параметры onlyAvailable и onlyIssued не могут быть одновременно true',
-    );
-  }
-
-  const qb = this.baseIdsQuery()
-    .select('book.id', 'id')
-    .groupBy('book.id');
-
-  if (search) {
-    const colMap: Record<string, string> = {
-      localIndex: 'book.local_index',
-      title:      'book.title',
-      authors:    "concat_ws(' ', a.last_name, a.first_name, a.patronymic)",
-      bookType:   'book.type',
-      edit:       'book.edit',
-      series:     'book.series',
-      physDesc:   'book.phys_desc',
-      bbks:       "string_agg(distinct bbk.bbk_abb, ',')",
-      udcs:       "string_agg(distinct udc.udc_abb, ',')",
-      bbkRaws:    "string_agg(distinct bbr.bbk_code, ',')",
-      udcRaws:    "string_agg(distinct udr.udc_code, ',')",
-      publicationPlaces:
-        "string_agg(distinct concat_ws(' ', pp.city, pub.name, pp.pub_year), ',')",
-    };
-
-    if (searchColumn && colMap[searchColumn]) {
-      const expr = colMap[searchColumn];
-      const param = { s: `%${search}%` };
-
-      // простая эвристика: если в выражении есть агрегат — используем HAVING
-      const usesAggregate = /string_agg|count|sum|min|max|avg/i.test(expr);
-
-      if (usesAggregate) {
-        qb.andHaving(`${expr} ILIKE :s`, param);
-      } else {
-        qb.andWhere(`${expr} ILIKE :s`, param);
-      }
-    } else {
-      // общий полнотекстовый поиск без изменения
-      qb.andWhere(
-        `(book.title ILIKE :s
-          OR book.local_index ILIKE :s
-          OR book.phys_desc ILIKE :s
-          OR book.series ILIKE :s
-          OR book.edit  ILIKE :s
-          OR a.last_name   ILIKE :s
-          OR a.first_name  ILIKE :s
-          OR a.patronymic ILIKE :s)`,
-        { s: `%${search}%` },
+    if (onlyAvailable && onlyIssued) {
+      throw new BadRequestException(
+        'Параметры onlyAvailable и onlyIssued не могут быть одновременно true',
       );
-
-      console.log('Запрос после добавления условия поиска:', qb.getQueryAndParameters());
     }
-  }
+
+    const qb = this.baseIdsQuery()
+      .select('book.id', 'id')
+      .groupBy('book.id');
+
+    if (search) {
+      const colMap: Record<string, string> = {
+        title:      'book.title',
+        authors:    "concat_ws(' ', a.last_name, a.first_name, a.patronymic)",
+        bookType:   'book.type',
+        edit:       'book.edit',
+        series:     'book.series',
+        physDesc:   'book.phys_desc',
+        bbks:       "string_agg(distinct bbk.bbk_abb, ',')",
+        udcs:       "string_agg(distinct udc.udc_abb, ',')",
+        bbkRaws:    "string_agg(distinct bbr.bbk_code, ',')",
+        udcRaws:    "string_agg(distinct udr.udc_code, ',')",
+        publicationPlaces:
+          "string_agg(distinct concat_ws(' ', pp.city, pub.name, pp.pub_year), ',')",
+      };
+
+      if (searchColumn && colMap[searchColumn]) {
+        const expr = colMap[searchColumn];
+        const param = { s: `%${search}%` };
+
+        // простая эвристика: если в выражении есть агрегат — используем HAVING
+        const usesAggregate = /string_agg|count|sum|min|max|avg/i.test(expr);
+
+        if (usesAggregate) {
+          qb.andHaving(`${expr} ILIKE :s`, param);
+        } else {
+          qb.andWhere(`${expr} ILIKE :s`, param);
+        }
+      } else {
+        // общий полнотекстовый поиск без изменения
+        qb.andWhere(
+          `(book.title ILIKE :s
+            OR book.phys_desc ILIKE :s
+            OR book.series ILIKE :s
+            OR book.edit  ILIKE :s
+            OR a.last_name   ILIKE :s
+            OR a.first_name  ILIKE :s
+            OR a.patronymic ILIKE :s)`,
+          { s: `%${search}%` },
+        );
+
+        console.log('Запрос после добавления условия поиска:', qb.getQueryAndParameters());
+      }
+    }
 
     if (onlyIssued) {
-    qb.andWhere(`
-      EXISTS (
-        SELECT 1
-          FROM book_copy bc2
-          JOIN borrow_record br2
-            ON br2.book_copy_id = bc2.id
-          AND br2.return_date IS NULL
-        WHERE bc2.book_id = book.id
-      )
-    `);
+      qb.andWhere(`
+        EXISTS (
+          SELECT 1
+            FROM book_copy bc2
+            JOIN borrow_record br2
+              ON br2.book_copy_id = bc2.id
+            AND br2.return_date IS NULL
+          WHERE bc2.book_id = book.id
+        )
+      `);
     }
 
     if (onlyAvailable) {
@@ -149,7 +146,6 @@ async findPaginated(
     }
 
     const allowed: Record<string, { col: string; type: 'text' | 'number' }> = {
-      localIndex:        { col: 'MIN(book.local_index)', type: 'text' },
       title:             { col: 'MIN(book.title)',       type: 'text' },
       authors:           { col: "string_agg(DISTINCT a.last_name, ',')", type: 'text' },
       bookType:          { col: 'MIN(book.type)',        type: 'text' },
@@ -261,7 +257,7 @@ async findPaginated(
       }
 
       // Обновление скалярных полей
-      const scalarFields = ['title', 'localIndex', 'bookType', 'edit', 'editionStatement', 'series', 'physDesc'] as const;
+      const scalarFields = ['title', 'bookType', 'edit', 'editionStatement', 'series', 'physDesc'] as const;
       scalarFields.forEach(key => {
         if (key in dto) {
           (bookWithRelations as any)[key] = (dto as any)[key] ?? null;
@@ -403,20 +399,5 @@ async findPaginated(
     const exists = await this.bookRepo.exist({ where: { id } });
     if (!exists) throw new NotFoundException('Книга не найдена');
     await this.bookRepo.delete(id);
-  }
-
-  /* ────────────────────────────────────────────────────────────────────── */
-  /*                        find by local index helper                     */
-  /* ────────────────────────────────────────────────────────────────────── */
-
-  findOneByLocalIndex(localIndex: string) {
-    return this.bookRepo.findOne({
-      where: { localIndex },
-      relations: [
-        'bookCopies', 'bookCopies.borrowRecords',
-        'authors', 'bbks', 'udcs',
-        'publicationPlaces', 'publicationPlaces.publisher',
-      ],
-    });
   }
 }

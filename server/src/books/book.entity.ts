@@ -30,9 +30,6 @@ export class Book {
   @Column({ nullable: true })
   series: string;
 
-  @Column({ name: 'local_index', nullable: true })
-  localIndex: string;
-
   @ManyToMany(() => Author, { cascade: true })
   @JoinTable({
     name: 'book_author',

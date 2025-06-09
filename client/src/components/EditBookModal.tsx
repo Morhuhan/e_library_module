@@ -80,7 +80,6 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
 
     reset({
       title: fullBook.title ?? '',
-      localIndex: fullBook.localIndex ?? '',
       bookType: fullBook.bookType ?? '',
       edit: fullBook.edit ?? '',
       editionStatement: fullBook.editionStatement ?? '',
@@ -167,7 +166,6 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
     (
       [
         'title',
-        'localIndex',
         'bookType',
         'edit',
         'editionStatement',
@@ -239,7 +237,6 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
           {(
             [
               { name: 'title', label: 'Название' },
-              { name: 'localIndex', label: 'Индекс' },
               { name: 'bookType', label: 'Тип' },
               { name: 'edit', label: 'Редактор' },
               { name: 'editionStatement', label: 'Сведения об изд.' },
