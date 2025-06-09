@@ -129,7 +129,7 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
   useEffect(() => {
     const names = authorsList
       .map((a) =>
-        [a.lastName, a.firstName, a.middleName]
+        [a.lastName, a.firstName, a.patronymic]
           .filter(Boolean)
           .join(' ')
           .trim()
@@ -266,7 +266,7 @@ const EditBookModal: React.FC<EditBookModalProps> = ({
               {authorsList.map((a) => (
                 <AuthorChip
                   key={a.id}
-                  name={[a.lastName, a.firstName, a.middleName]
+                  name={[a.lastName, a.firstName, a.patronymic]
                     .filter(Boolean)
                     .join(' ')}
                   onRemove={() =>

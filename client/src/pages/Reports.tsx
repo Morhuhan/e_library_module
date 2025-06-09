@@ -88,7 +88,7 @@ const Reports: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-4">
+    <div className="w-full max-w-full px-4 py-4">
       <h2 className="text-xl font-semibold mb-4">Отчёты</h2>
       <div className="flex flex-wrap gap-2">
         <button

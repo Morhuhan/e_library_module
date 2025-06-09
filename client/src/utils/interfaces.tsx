@@ -13,7 +13,9 @@ export interface Person {
   id: number;
   firstName: string;
   lastName: string;
-  middleName?: string;
+  patronymic: string;
+  sex: string;
+  birthDate: string;
 }
 
 export interface PaginatedResponse<T> {
@@ -40,7 +42,7 @@ export interface ErrorResponse {
 export interface Author {
   id: number;
   firstName: string;
-  middleName: string | null;
+  patronymic: string | null;
   lastName: string;
   birthYear: number | null;
 }

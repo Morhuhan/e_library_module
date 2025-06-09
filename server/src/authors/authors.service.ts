@@ -23,7 +23,7 @@ export class AuthorsService {
             `LOWER(CONCAT_WS(' ',
                 COALESCE(a.last_name , ''),
                 COALESCE(a.first_name, ''),
-                COALESCE(a.middle_name, ''),
+                COALESCE(a.patronymic, ''),
                 COALESCE(a.birth_year::text, '')
             )) LIKE :like`, { like: `%${term}%` },
           );

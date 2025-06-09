@@ -55,23 +55,31 @@ export class BooksService {
       .leftJoin('bc.borrowRecords',     'br');
   }
 
-  async findPaginated(
-    search = '',
-    searchColumn = '',
-    onlyAvailable = false,
-    page = 1,
-    limit = 10,
-    sort = '',
-  ): Promise<{ data: Book[]; total: number; page: number; limit: number }> {
-    const qb = this.baseIdsQuery()
-      .select('book.id', 'id')
-      .groupBy('book.id');
+async findPaginated(
+  search = '',
+  searchColumn = '',
+  onlyAvailable = false,
+  onlyIssued    = false,
+  page = 1,
+  limit = 10,
+  sort = '',
+): Promise<{ data: Book[]; total: number; page: number; limit: number }> {
+
+  if (onlyAvailable && onlyIssued) {
+    throw new BadRequestException(
+      'Параметры onlyAvailable и onlyIssued не могут быть одновременно true',
+    );
+  }
+
+  const qb = this.baseIdsQuery()
+    .select('book.id', 'id')
+    .groupBy('book.id');
 
   if (search) {
     const colMap: Record<string, string> = {
       localIndex: 'book.local_index',
       title:      'book.title',
-      authors:    "concat_ws(' ', a.last_name, a.first_name, a.middle_name)",
+      authors:    "concat_ws(' ', a.last_name, a.first_name, a.patronymic)",
       bookType:   'book.type',
       edit:       'book.edit',
       series:     'book.series',
@@ -106,13 +114,26 @@ export class BooksService {
           OR book.edit  ILIKE :s
           OR a.last_name   ILIKE :s
           OR a.first_name  ILIKE :s
-          OR a.middle_name ILIKE :s)`,
+          OR a.patronymic ILIKE :s)`,
         { s: `%${search}%` },
       );
 
       console.log('Запрос после добавления условия поиска:', qb.getQueryAndParameters());
     }
   }
+
+    if (onlyIssued) {
+    qb.andWhere(`
+      EXISTS (
+        SELECT 1
+          FROM book_copy bc2
+          JOIN borrow_record br2
+            ON br2.book_copy_id = bc2.id
+          AND br2.return_date IS NULL
+        WHERE bc2.book_id = book.id
+      )
+    `);
+    }
 
     if (onlyAvailable) {
       qb.andWhere(`

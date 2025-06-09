@@ -1,252 +1,209 @@
-import React, { useState, useEffect } from 'react';
-import type { Book, Person } from '../utils/interfaces.tsx';
+import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import clsx from 'clsx';
+import { Book, Person, PaginatedResponse, Author, Bbk, Udc } from '../utils/interfaces.tsx';
 import httpClient from '../utils/httpsClient.tsx';
 import { toast } from 'react-toastify';
+import Pagination from '../components/Pagination.tsx';
+import BorrowDetailsModal from '../components/BorrowDetailsModal.tsx';
 
 type ActionType = 'borrow' | 'return';
 
-const BorrowReturn: React.FC = () => {
-  const [actionType, setActionType] = useState<ActionType>('borrow');
-  const [bookLocalIndexQuery, setBookLocalIndexQuery] = useState('');
-  const [foundBook, setFoundBook] = useState<Book | null>(null);
-  const [selectedCopyId, setSelectedCopyId] = useState<number | null>(null);
-  const [persons, setPersons] = useState<Person[]>([]);
-  const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
+/* ─── Колонки, по которым можно искать ─── */
+const COLUMNS = [
+  { key: 'localIndex', label: 'Индекс' },
+  { key: 'title', label: 'Название' },
+  { key: 'authors', label: 'Авторы' },
+  { key: 'bookType', label: 'Тип' },
+  { key: 'edit', label: 'Редакция' },
+  { key: 'series', label: 'Серия' },
+  { key: 'physDesc', label: 'Описание' },
+  { key: 'bbks', label: 'ББК' },
+  { key: 'udcs', label: 'УДК' },
+  { key: 'bbkRaws', label: 'ББК*' },
+  { key: 'udcRaws', label: 'УДК*' },
+  { key: 'publicationPlaces', label: 'Издательство' },
+] as const;
+type SearchColumn = (typeof COLUMNS)[number]['key'];
 
+/* ─── Настройка дебаунса ─── */
+const DEBOUNCE_MS = 400;
+
+const BorrowReturn: React.FC = () => {
+  /* --------------------------- Состояния -------------------------- */
+  const [actionType, setActionType] = useState<ActionType>('borrow');
+  const [rawSearch, setRawSearch] = useState('');
+  const [searchColumn, setSearchColumn] = useState<SearchColumn>('localIndex');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [modalBookId, setModalBookId] = useState<number | null>(null);
+  const [persons, setPersons] = useState<Person[]>([]);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  /* ----------------------------- API ------------------------------ */
+  /* загружаем список людей один раз */
   useEffect(() => {
-    const fetchPersons = async () => {
+    (async () => {
       try {
-        const res = await httpClient.get<Person[]>('/persons');
-        setPersons(res.data);
+        const { data } = await httpClient.get<Person[]>('/persons');
+        setPersons(data);
       } catch (err) {
         console.error('Ошибка при получении людей:', err);
       }
-    };
-    fetchPersons();
+    })();
   }, []);
 
-  const resetAllStates = () => {
-    setFoundBook(null);
-    setSelectedCopyId(null);
-    setBookLocalIndexQuery('');
-    setSelectedPersonId(null);
-  };
+  /* ——— запрос книг ——— */
+  const fetchBooks = useCallback(
+    async (signal?: AbortSignal) => {
+      const p = new URLSearchParams();
+      p.append('search', rawSearch.trim());
+      p.append('searchColumn', searchColumn);
+      p.append('page', String(page));
+      p.append('limit', String(limit));
 
-  const handleActionTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setActionType(e.target.value as ActionType);
-    resetAllStates();
-  };
+      /* автоматическая фильтрация по типу действия */
+      if (actionType === 'borrow') {
+        p.append('onlyAvailable', 'true');
+      } else {
+        p.append('onlyIssued', 'true');
+      }
 
-  const handleFindBook = async () => {
-    if (!bookLocalIndexQuery.trim()) {
-      alert('Введите локальный индекс');
-      return;
-    }
-    try {
-      const url = `/books/find?searchType=local_index&query=${encodeURIComponent(
-        bookLocalIndexQuery
-      )}`;
-      const res = await httpClient.get<Book>(url);
-      setFoundBook(res.data);
-      setSelectedCopyId(null);
-    } catch (err) {
-      console.error('Ошибка при поиске книги:', err);
-      setFoundBook(null);
-    }
-  };
+      try {
+        const { data } = await httpClient.get<PaginatedResponse<Book>>(
+          `/books/paginated?${p.toString()}`,
+          { signal },
+        );
+        setBooks(data.data);
+        setTotalPages(Math.max(1, Math.ceil(data.total / limit)));
+      } catch (err: any) {
+        if (err.name !== 'CanceledError') {
+          console.error('Ошибка при поиске книг:', err);
+          setBooks([]);
+          setTotalPages(1);
+          toast.error('Не удалось загрузить список книг');
+        }
+      }
+    },
+    [rawSearch, searchColumn, page, limit, actionType],
+  );
 
-  const refetchBook = async () => {
-    if (!bookLocalIndexQuery) return;
-    try {
-      const url = `/books/find?searchType=local_index&query=${encodeURIComponent(
-        bookLocalIndexQuery
-      )}`;
-      const res = await httpClient.get<Book>(url);
-      setFoundBook(res.data);
-    } catch (err) {
-      console.error('Ошибка при обновлении книги:', err);
-    }
-  };
+  /* ─── дебаунсим запрос книг ─── */
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const tId = setTimeout(() => fetchBooks(ctrl.signal), DEBOUNCE_MS);
 
-  const handleBorrow = async () => {
-    if (!foundBook || !selectedCopyId || !selectedPersonId) {
-      alert('Выберите книгу, экземпляр и человека');
-      return;
-    }
-    try {
-      await httpClient.post('/borrow-records', {
-        bookCopyId: selectedCopyId,
-        personId: selectedPersonId,
-      });
-      toast.success('Книга успешно выдана');
-      await refetchBook();
-      resetAllStates();
-    } catch (err: any) {
-      console.error('Ошибка при выдаче:', err);
-    }
-  };
+    return () => {
+      clearTimeout(tId);
+      ctrl.abort();
+    };
+  }, [rawSearch, searchColumn, page, limit, actionType, reloadToken, fetchBooks]);
 
-  const handleReturn = async () => {
-    if (!foundBook || !selectedCopyId) {
-      alert('Сначала найдите книгу и выберите экземпляр');
-      return;
-    }
-    const copy = foundBook.bookCopies?.find((c) => c.id === selectedCopyId);
-    if (!copy?.borrowRecords) {
-      alert('Нет записей о выдаче для этого экземпляра');
-      return;
-    }
-    const activeRecord = copy.borrowRecords.find((r) => !r.returnDate);
-    if (!activeRecord) {
-      alert('Этот экземпляр не числится выданным');
-      return;
-    }
-    try {
-      await httpClient.patch(`/borrow-records/${activeRecord.id}/return`, {});
-      toast.success('Книга возвращена');
-      await refetchBook();
-      setSelectedCopyId(null);
-    } catch (err) {
-      console.error('Ошибка при возврате:', err);
-    }
-  };
+  /* -------------------------- Форматтеры -------------------------- */
+  const fmtAuthors = (authors: Author[] | null) =>
+    authors?.length
+      ? authors
+          .map(
+            a =>
+              `${a.lastName}${a.firstName ? ` ${a.firstName}` : ''}${
+                a.patronymic ? ` ${a.patronymic}` : ''
+              }`,
+          )
+          .join(', ')
+      : '(нет авторов)';
 
-  const getFilteredCopies = () => {
-    if (!foundBook?.bookCopies?.length) return [];
-    return foundBook.bookCopies.filter((c) => {
-      const isBorrowed = c.borrowRecords?.some((r) => !r.returnDate);
-      return actionType === 'borrow' ? !isBorrowed : isBorrowed;
-    });
-  };
-
-  const filteredCopies = getFilteredCopies();
-
+  /* ---------------------------- UI ------------------------------- */
   return (
-    <div className="container mx-auto px-4 py-4">
+    <div className="w-full max-w-full px-4 py-4">
       <h2 className="text-xl font-semibold mb-4">Выдача / Возврат</h2>
-      <div className="flex flex-col gap-4 max-w-md">
-        <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1">Действие:</label>
-          <select
-            value={actionType}
-            onChange={handleActionTypeChange}
-            className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none"
-          >
-            <option value="borrow">Выдать</option>
-            <option value="return">Принять</option>
-          </select>
-        </div>
 
-        <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1">Локальный индекс:</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Введите индекс"
-              value={bookLocalIndexQuery}
-              onChange={(e) => setBookLocalIndexQuery(e.target.value)}
-              className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none"
-            />
-            <button
-              onClick={handleFindBook}
-              className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-1 px-3 rounded focus:outline-none"
-            >
-              Найти
-            </button>
-          </div>
-        </div>
+      {/* ─── Панель поиска ─── */}
+      <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-6">
+        {/* действие */}
+        <select
+          value={actionType}
+          onChange={e => {
+            setActionType(e.target.value as ActionType);
+            setPage(1);
+          }}
+          className="border rounded px-2 py-1 text-sm pr-8"
+        >
+          <option value="borrow">Выдать</option>
+          <option value="return">Принять</option>
+        </select>
+
+        {/* колонка поиска */}
+        <select
+          value={searchColumn}
+          onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+            setSearchColumn(e.target.value as SearchColumn);
+            setPage(1);
+          }}
+          className="border rounded px-2 py-1 text-sm pr-8"
+        >
+          {COLUMNS.map(c => (
+            <option key={c.key} value={c.key}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+
+        {/* строка поиска */}
+        <input
+          type="text"
+          placeholder="Введите запрос…"
+          value={rawSearch}
+          onChange={e => {
+            setRawSearch(e.target.value);
+            setPage(1);
+          }}
+          className="border rounded px-2 py-1 text-sm flex-1 min-w-[160px]"
+        />
       </div>
 
-      {foundBook && (
-        <div className="mt-4 p-4 border border-gray-200 rounded bg-gray-50">
-          <h4 className="font-semibold mb-2">Найдена книга:</h4>
-          <p className="text-sm mb-1">
-            <strong>{foundBook.title}</strong>
-            {foundBook.authors ? ` / ${foundBook.authors}` : ''}
-            {foundBook.bookType ? ` [${foundBook.bookType}]` : ''}
-          </p>
-          <p className="text-sm mb-1">УДК: {foundBook.udc || '(нет)'}</p>
-          <p className="text-sm mb-1">ББК: {foundBook.bbk || '(нет)'}</p>
-          <p className="text-sm mb-2">Лок. индекс: {foundBook.localIndex || '(нет)'}</p>
-
-          {foundBook.bookCopies?.length ? (
-            <ul className="list-disc list-inside text-sm mb-2">
-              {foundBook.bookCopies.map((c) => {
-                const borrowed = c.borrowRecords?.some((r) => !r.returnDate);
-                return (
-                  <li key={c.id}>
-                    {c.copyInfo || `Экземпляр #${c.id}`} – {borrowed ? 'Выдан' : 'В наличии'}
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="text-sm">Нет экземпляров</p>
-          )}
-
-          {filteredCopies.length > 0 && (
-            <div className="flex flex-col mb-2">
-              <label className="text-sm font-medium">
-                {actionType === 'borrow'
-                  ? 'Свободный экземпляр:'
-                  : 'Выданный экземпляр:'}
-              </label>
-              <select
-                value={selectedCopyId ?? ''}
-                onChange={(e) => setSelectedCopyId(Number(e.target.value))}
-                className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none mt-1"
-              >
-                <option value="">-- не выбрано --</option>
-                {filteredCopies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.copyInfo || `Экземпляр #${c.id}`}
-                  </option>
-                ))}
-              </select>
+      {/* ─── Карточки книг ─── */}
+      {books.length ? (
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+          {books.map(b => (
+            <div
+              key={b.id}
+              className={clsx(
+                'border rounded p-3 cursor-pointer transition hover:bg-gray-300',
+              )}
+              onClick={() => setModalBookId(b.id)}
+            >
+              <h4 className="font-semibold text-sm mb-1">
+                {b.title || '(без названия)'}
+              </h4>
+              <p className="text-xs mb-1">{fmtAuthors(b.authors)}</p>
+              <p className="text-xs">Индекс: {b.localIndex || '—'}</p>
             </div>
-          )}
-
-          {actionType === 'borrow' && filteredCopies.length > 0 && (
-            <div className="flex flex-col mb-2">
-              <label className="text-sm font-medium">Кому выдаём:</label>
-              <select
-                value={selectedPersonId ?? ''}
-                onChange={(e) => setSelectedPersonId(Number(e.target.value))}
-                className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none mt-1"
-              >
-                <option value="">-- выберите --</option>
-                {persons.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.lastName} {p.firstName}
-                    {p.middleName ? ` ${p.middleName}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          ))}
         </div>
+      ) : (
+        <p className="text-sm text-gray-500">Ничего не найдено</p>
       )}
 
-      <div className="mt-4">
-        {actionType === 'borrow' && filteredCopies.length > 0 && (
-          <button
-            onClick={handleBorrow}
-            disabled={!selectedCopyId}
-            className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded mr-2 disabled:opacity-50"
-          >
-            Выдать
-          </button>
-        )}
-        {actionType === 'return' && filteredCopies.length > 0 && (
-          <button
-            onClick={handleReturn}
-            disabled={!selectedCopyId}
-            className="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded disabled:opacity-50"
-          >
-            Принять
-          </button>
-        )}
-      </div>
+      {/* ─── Пагинация ─── */}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        limit={limit}
+        onPageChange={p => setPage(p)}
+        onLimitChange={l => {
+          setLimit(l);
+          setPage(1);
+        }}
+      />
+
+      {/* ─── Модальное окно с деталями и действиями ─── */}
+      <BorrowDetailsModal
+        bookId={modalBookId}
+        actionType={actionType}
+        onClose={() => setModalBookId(null)}
+        onDone={() => setReloadToken(v => v + 1)}
+      />
     </div>
   );
 };

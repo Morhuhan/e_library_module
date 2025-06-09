@@ -11,6 +11,12 @@ export class Person {
   @Column({ name: 'last_name' })
   lastName: string;
 
-  @Column({ name: 'middle_name', nullable: true })
-  middleName?: string;
+  @Column({ name: 'patronymic', nullable: true })
+  patronymic?: string;
+
+  @Column({ name: 'sex' })
+  sex: string;
+
+  @Column({ name: 'birthday', type: 'date' })
+  birthday: Date;
 }

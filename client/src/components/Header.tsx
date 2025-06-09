@@ -19,8 +19,10 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="bg-gray-800 text-white py-4 shadow">
-      <nav className="container mx-auto flex justify-between items-center px-4">
+    /* sticky top-0: шапка &laquo;прилипает&raquo; к верхней границе.
+       z-50 — чтобы быть поверх остального контента. */
+    <header className="bg-gray-800 text-white py-4 shadow sticky top-0 z-50">
+      <nav className="w-full max-w-full flex justify-between items-center px-4">
         <div className="space-x-4">
           {role === 'LIBRARIAN' && (
             <>

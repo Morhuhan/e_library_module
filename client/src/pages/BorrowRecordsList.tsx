@@ -1,227 +1,233 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import clsx from 'clsx';
 import httpClient from '../utils/httpsClient.tsx';
 import type { BorrowRecord, PaginatedResponse } from '../utils/interfaces.tsx';
 import Pagination from '../components/Pagination.tsx';
 import { toast } from 'react-toastify';
 
+const LIMIT_OPTIONS = [10, 20, 50] as const;
+type SortState = { field: keyof BorrowRecord | string; order: 'asc' | 'desc' } | null;
+const DEBOUNCE_MS = 400;
+
+const COLUMNS = [
+  { key: 'id', label: 'ID', width: 'w-16' },
+  { key: 'title', label: 'Название', width: 'w-48' },
+  { key: 'copyInfo', label: 'Экземпляр', width: 'w-36' },
+  { key: 'person', label: 'Получатель', width: 'w-48' },
+  { key: 'borrowDate', label: 'Дата выдачи', width: 'w-28' },
+  { key: 'returnDate', label: 'Дата возврата', width: 'w-28' },
+  { key: 'issuedByUser', label: 'Кто выдал', width: 'w-32' },
+  { key: 'acceptedByUser', label: 'Кто принял', width: 'w-32' },
+] as const;
+
 const BorrowRecordsList: React.FC = () => {
+  // ───── Флаги состояния ─────
   const [borrowRecords, setBorrowRecords] = useState<BorrowRecord[]>([]);
-  const [searchValue, setSearchValue] = useState('');
+  const [rawSearch, setRawSearch] = useState('');
   const [onlyDebts, setOnlyDebts] = useState(false);
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState<typeof LIMIT_OPTIONS[number]>(LIMIT_OPTIONS[0]);
   const [total, setTotal] = useState(0);
+  const [sort, setSort] = useState<SortState>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0); // для ручного перезапроса
 
-  const fetchBorrowRecords = async (newPage = 1, newLimit = 10) => {
-    try {
-      const res = await httpClient.get<PaginatedResponse<BorrowRecord>>(
-        '/borrow-records/paginated',
-        {
-          params: {
-            search: searchValue,
-            onlyDebts: onlyDebts ? 'true' : 'false',
-            page: newPage,
-            limit: newLimit,
-          },
-        }
-      );
-      setBorrowRecords(res.data.data);
-      setTotal(res.data.total);
-      setPage(res.data.page);
-      setLimit(res.data.limit);
-    } catch (err) {
-      console.error('Ошибка при получении записей:', err);
-    }
-  };
-
+  // ───── Копирование ячеек ─────
   const handleCellClick = (e: React.MouseEvent<HTMLTableCellElement>) => {
-    const text = e.currentTarget.textContent?.trim() || '';
-
-    if (navigator && 'clipboard' in navigator) {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          toast.success(`Скопировано: "${text}"`);
-        })
-        .catch((err) => {
-          console.error('Ошибка при копировании текста (clipboard): ', err);
-        });
-    } else {
-      try {
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.position = 'fixed';
-        textarea.style.left = '-9999px';
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        toast.success(`Скопировано: "${text}"`);
-      } catch (copyErr) {
-        console.error('Ошибка при копировании текста (execCommand): ', copyErr);
-      }
-    }
+    const text = e.currentTarget.textContent?.trim() ?? '';
+    navigator.clipboard?.writeText(text)
+      .then(() => toast.success(`Скопировано: "${text}"`))
+      .catch(() => toast.error('Не удалось скопировать'));
   };
 
-  useEffect(() => {
-    fetchBorrowRecords(page, limit);
-  }, [page, limit]);
-
-  useEffect(() => {
+  // ───── Смена состояния сортировки ─────
+  const cycleSortState = useCallback((field: string) => {
+    setSort(prev => {
+      if (!prev || prev.field !== field) return { field, order: 'asc' };
+      if (prev.order === 'asc') return { field, order: 'desc' };
+      return null; // сброс
+    });
     setPage(1);
-    fetchBorrowRecords(1, limit);
-  }, [searchValue, onlyDebts]);
+  }, []);
 
-  const totalPages = Math.ceil(total / limit);
+  // ───── Запрос данных ─────
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        params.append('search', rawSearch.trim());
+        params.append('onlyDebts', String(onlyDebts));
+        params.append('page', String(page));
+        params.append('limit', String(limit));
+        if (sort) params.append('sort', `${sort.field}.${sort.order}`);
 
+        const { data } = await httpClient.get<PaginatedResponse<BorrowRecord>>(
+          `/borrow-records/paginated?${params.toString()}`,
+          { signal: ctrl.signal },
+        );
+        setBorrowRecords(data.data);
+        setTotal(data.total);
+      } catch (err: any) {
+        if (err.name !== 'CanceledError')
+          setError('Не удалось загрузить записи. Попробуйте ещё раз.');
+      } finally {
+        setIsLoading(false);
+      }
+    }, DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timeoutId);
+      ctrl.abort();
+    };
+  }, [rawSearch, onlyDebts, page, limit, sort, reloadToken]);
+
+  // ───── Вспомогательные вычисления ─────
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const arrowFor = (field: string) => {
+    if (!sort || sort.field !== field) return { char: '▼', className: 'text-gray-400' };
+    return { char: sort.order === 'asc' ? '▲' : '▼', className: 'text-black' };
+  };
+
+  // ───── Рендер ─────
   return (
-    <div className="container mx-auto px-4 py-4">
-      <h2 className="text-xl font-semibold mb-4">Записи о выдаче книг (пагинация)</h2>
+    <div className="w-full max-w-full px-4 py-4">
+      <h2 className="text-xl font-semibold mb-4">Записи о выдаче книг</h2>
 
-      <div className="mb-2 flex flex-col sm:flex-row items-center gap-2">
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4">
+          {error}
+        </div>
+      )}
+
+      {/* ───── Фильтры поиска ───── */}
+      <div className="flex flex-col sm:flex-row items-center gap-2 mb-4">
         <input
           type="text"
-          placeholder="Поиск по фамилии..."
-          value={searchValue}
-          onChange={(e) => setSearchValue(e.target.value)}
-          className="border border-gray-300 rounded px-2 py-1 focus:outline-none text-sm"
+          placeholder="Поиск по фамилии…"
+          value={rawSearch}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => {
+            setRawSearch(e.target.value);
+            setPage(1);
+          }}
+          className="border rounded px-2 py-1 text-sm w-full sm:w-64"
         />
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={onlyDebts}
-            onChange={(e) => setOnlyDebts(e.target.checked)}
+            onChange={e => {
+              setOnlyDebts(e.target.checked);
+              setPage(1);
+            }}
           />
-          Показать только не возвращённые
+          Только не возвращённые
         </label>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="table-fixed w-full text-sm border-collapse border-2 border-gray-400">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="p-2 border-2 border-gray-400 w-16 break-words whitespace-normal">
-                ID
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-48 break-words whitespace-normal">
-                Название
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-36 break-words whitespace-normal">
-                Экземпляр
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-48 break-words whitespace-normal">
-                Получатель
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-28 break-words whitespace-normal">
-                Дата выдачи
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-28 break-words whitespace-normal">
-                Дата возврата
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-32 break-words whitespace-normal">
-                Кто выдал
-              </th>
-              <th className="p-2 border-2 border-gray-400 w-32 break-words whitespace-normal">
-                Кто принял
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {borrowRecords.length > 0 ? (
-              borrowRecords.map((rec) => {
-                const bookTitle = rec.bookCopy?.book?.title || '—';
-                const copyInfo = rec.bookCopy?.copyInfo || `Экз. #${rec.bookCopy?.id}`;
-                const person = rec.person
-                  ? `${rec.person.lastName} ${rec.person.firstName}${
-                      rec.person.middleName ? ` ${rec.person.middleName}` : ''
-                    }`
-                  : '—';
-                const issuedUser =
-                  rec.issuedByUser?.username || `ID ${rec.issuedByUser?.id || '—'}`;
-                const acceptedUser =
-                  rec.acceptedByUser?.username || `ID ${rec.acceptedByUser?.id || '—'}`;
-                const isReturned = rec.returnDate !== null;
-
-                return (
-                  <tr key={rec.id} className="group border-b hover:bg-gray-200 transition-colors">
-                    <td
-                      className="p-2 border break-words whitespace-normal cursor-pointer
-                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
-                      onClick={handleCellClick}
-                    >
-                      {rec.id}
-                    </td>
-                    <td
-                      className="p-2 border break-words whitespace-normal cursor-pointer
-                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
-                      onClick={handleCellClick}
-                    >
-                      {bookTitle}
-                    </td>
-                    <td
-                      className="p-2 border break-words whitespace-normal cursor-pointer
-                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
-                      onClick={handleCellClick}
-                    >
-                      {copyInfo}
-                    </td>
-                    <td
-                      className="p-2 border break-words whitespace-normal cursor-pointer
-                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
-                      onClick={handleCellClick}
-                    >
-                      {person}
-                    </td>
-                    <td
-                      className="p-2 border break-words whitespace-normal cursor-pointer
-                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
-                      onClick={handleCellClick}
-                    >
-                      {rec.borrowDate || '—'}
-                    </td>
-                    <td
-                      className="p-2 border break-words whitespace-normal cursor-pointer
-                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
-                      onClick={handleCellClick}
-                    >
-                      {rec.returnDate || '—'}
-                    </td>
-                    <td
-                      className="p-2 border break-words whitespace-normal cursor-pointer
-                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
-                      onClick={handleCellClick}
-                    >
-                      {issuedUser}
-                    </td>
-                    <td
-                      className="p-2 border break-words whitespace-normal cursor-pointer
-                                 group-hover:bg-gray-200 hover:!bg-yellow-2000 transition-colors"
-                      onClick={handleCellClick}
-                    >
-                      {isReturned ? acceptedUser : '—'}
-                    </td>
-                  </tr>
-                );
-              })
-            ) : (
+      {/* ───── Таблица ───── */}
+      <div className="relative overflow-x-auto border rounded">
+        <div className="w-full">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-100 select-none">
               <tr>
-                <td colSpan={8} className="p-2 border text-center">
-                  Нет записей
-                </td>
+                {COLUMNS.map(col => {
+                  const { char, className } = arrowFor(col.key);
+                  return (
+                    <th
+                      key={col.key}
+                      className={clsx(
+                        'p-2 border cursor-pointer whitespace-nowrap',
+                        col.width,
+                      )}
+                      onClick={() => cycleSortState(col.key)}
+                    >
+                      {col.label}
+                      <span className={clsx('ml-1', className)}>{char}</span>
+                    </th>
+                  );
+                })}
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+
+            <tbody>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={COLUMNS.length} className="p-4 text-center">
+                    Загрузка…
+                  </td>
+                </tr>
+              ) : !borrowRecords.length ? (
+                <tr>
+                  <td colSpan={COLUMNS.length} className="p-4 text-center">
+                    Нет записей
+                  </td>
+                </tr>
+              ) : (
+                borrowRecords.map(rec => {
+                  const bookTitle = rec.bookCopy?.book?.title ?? '—';
+                  const copyInfo = rec.bookCopy?.copyInfo ?? `Экз. #${rec.bookCopy?.id}`;
+                  const person = rec.person
+                    ? [rec.person.lastName, rec.person.firstName, rec.person.patronymic]
+                        .filter(Boolean)
+                        .join(' ')
+                    : '—';
+                  const issuedUser = rec.issuedByUser?.username ?? `ID ${rec.issuedByUser?.id ?? '—'}`;
+                  const acceptedUser = rec.acceptedByUser?.username ?? `ID ${rec.acceptedByUser?.id ?? '—'}`;
+                  const isReturned = rec.returnDate !== null;
+
+                  return (
+                    <tr
+                      key={rec.id}
+                      className="hover:bg-gray-200 transition-colors cursor-pointer"
+                    >
+                      <td
+                        className="p-2 border break-words whitespace-normal"
+                        onClick={handleCellClick}
+                      >
+                        {rec.id}
+                      </td>
+                      <td className="p-2 border" onClick={handleCellClick}>
+                        {bookTitle}
+                      </td>
+                      <td className="p-2 border" onClick={handleCellClick}>
+                        {copyInfo}
+                      </td>
+                      <td className="p-2 border" onClick={handleCellClick}>
+                        {person}
+                      </td>
+                      <td className="p-2 border" onClick={handleCellClick}>
+                        {rec.borrowDate ?? '—'}
+                      </td>
+                      <td className="p-2 border" onClick={handleCellClick}>
+                        {rec.returnDate ?? '—'}
+                      </td>
+                      <td className="p-2 border" onClick={handleCellClick}>
+                        {issuedUser}
+                      </td>
+                      <td className="p-2 border" onClick={handleCellClick}>
+                        {isReturned ? acceptedUser : '—'}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
+      {/* ───── Пагинация ───── */}
       <Pagination
         page={page}
         totalPages={totalPages}
         limit={limit}
-        onPageChange={(newPage) => setPage(newPage)}
-        onLimitChange={(newLimit) => {
-          setLimit(newLimit);
+        onPageChange={setPage}
+        onLimitChange={l => {
+          setLimit(l as typeof limit);
           setPage(1);
         }}
       />

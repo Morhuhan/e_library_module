@@ -41,7 +41,7 @@ export class ReportsService {
         'br.id AS "id"',
         'b.title AS "bookTitle"',
         'bc.copyInfo AS "copyInfo"',
-        `CONCAT(p.lastName, ' ', p.firstName, ' ', COALESCE(p.middleName, '')) AS "personFullName"`,
+        `CONCAT(p.lastName, ' ', p.firstName, ' ', COALESCE(p.patronymic, '')) AS "personFullName"`,
         'br.borrowDate AS "borrowDate"',
         'br.returnDate AS "returnDate"',
         'iu.username AS "issuedByUsername"',
@@ -74,7 +74,7 @@ export class ReportsService {
         'br.id AS "id"',
         'b.title AS "bookTitle"',
         'bc.copyInfo AS "copyInfo"',
-        `CONCAT(p.lastName, ' ', p.firstName, ' ', COALESCE(p.middleName, '')) AS "personFullName"`,
+        `CONCAT(p.lastName, ' ', p.firstName, ' ', COALESCE(p.patronymic, '')) AS "personFullName"`,
         'br.borrowDate AS "borrowDate"',
         'br.returnDate AS "returnDate"',
         'iu.username AS "issuedByUsername"',
@@ -120,7 +120,7 @@ export class ReportsService {
       .createQueryBuilder('p')
       .select('p.id', 'id')
       .addSelect(
-        `CONCAT(p.lastName, ' ', p.firstName, ' ', COALESCE(p.middleName, ''))`,
+        `CONCAT(p.lastName, ' ', p.firstName, ' ', COALESCE(p.patronymic, ''))`,
         'fullName',
       )
       .addSelect('COUNT(br.id)', 'borrowCount')

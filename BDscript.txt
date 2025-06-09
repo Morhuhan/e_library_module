@@ -1,49 +1,108 @@
 /* =======================================================
-   0.  Расширения (по желанию)
---CREATE EXTENSION IF NOT EXISTS pgcrypto;
+   A.  Подготовка (убираем дубликаты, сохранённые триггеры)
    =======================================================*/
+DROP TRIGGER IF EXISTS tr_prevent_book_deletion_if_borrowed      ON public.book;
+DROP TRIGGER IF EXISTS tr_prevent_book_copy_deletion_if_borrowed ON public.book_copy;
+
+-- Функции-стражи остаются (переиспользуем ниже)
+
+-- Избыточные копии таблиц (если остались после тестов) удаляем:
+DROP TABLE IF EXISTS public.author          CASCADE;
+DROP TABLE IF EXISTS public.bbk             CASCADE;
+DROP TABLE IF EXISTS public.udc             CASCADE;
+DROP TABLE IF EXISTS public.book            CASCADE;
+DROP TABLE IF EXISTS public.book_author     CASCADE;
+DROP TABLE IF EXISTS public.book_bbk        CASCADE;
+DROP TABLE IF EXISTS public.book_bbk_raw    CASCADE;
+DROP TABLE IF EXISTS public.book_copy       CASCADE;
+DROP TABLE IF EXISTS public.book_udc        CASCADE;
+DROP TABLE IF EXISTS public.book_udc_raw    CASCADE;
+DROP TABLE IF EXISTS public.book_pub_place  CASCADE;
+DROP TABLE IF EXISTS public.publisher       CASCADE;
+DROP TABLE IF EXISTS public.borrow_record   CASCADE;
+-- Служебные таблицы
+DROP TABLE IF EXISTS public.roles           CASCADE;
+DROP TABLE IF EXISTS public.users           CASCADE;
+DROP TABLE IF EXISTS public.person          CASCADE;
+-- Новые (если существовали после предыдущих экспериментов)
+DROP TABLE IF EXISTS public.student         CASCADE;
+DROP TABLE IF EXISTS public."group"         CASCADE;
 
 /* =======================================================
-   1.  Служебные справочники
+   B.  Актуальная схема библиотеки
    =======================================================*/
-CREATE TABLE IF NOT EXISTS public.roles (
+
+-- 0. Расширения
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- 1. Служебные справочники
+CREATE TABLE public.roles (
     id   SERIAL PRIMARY KEY,
     name VARCHAR(50) UNIQUE NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS public.users (
+CREATE TABLE public.users (
     id       SERIAL PRIMARY KEY,
     username VARCHAR(255) UNIQUE NOT NULL,
     pass     VARCHAR(255)      NOT NULL,
     role_id  INT NOT NULL REFERENCES public.roles(id)
 );
 
-CREATE TABLE IF NOT EXISTS public.person (
+CREATE TABLE public.person (
     id          SERIAL PRIMARY KEY,
     first_name  VARCHAR(255) NOT NULL,
     last_name   VARCHAR(255) NOT NULL,
-    middle_name VARCHAR(255)
+    patronymic VARCHAR(255),
+
+    /* — новые поля — */
+    sex        VARCHAR(1) NOT NULL,
+    birthday   DATE NOT NULL,
+    inn        BIGINT,
+    snils      VARCHAR(14),
+    email      VARCHAR(255),
+    military   VARCHAR(50)
 );
 
-/* =======================================================
-   2.  Классификационные справочники
-   =======================================================*/
-CREATE TABLE IF NOT EXISTS public.bbk (
+/* -------------------------------------------------------
+ *  Новая учебная структура: "group" и "student"
+ * ----------------------------------------------------- */
+
+CREATE TABLE public."group" (
+    id         SERIAL PRIMARY KEY,
+    start_year INT          NOT NULL,
+    end_date   DATE,
+    form       VARCHAR(50),          -- очная / заочная
+    course     INT,                  -- 1..6
+    prefix     VARCHAR(5),
+    subgroup   INT,
+    name       VARCHAR(10) NOT NULL, -- условное обозначение (например, ИВТ-21-1)
+    is_active  BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE public.student (
+    id              SERIAL PRIMARY KEY,
+    status          VARCHAR(10) NOT NULL,   -- учится / отчислен / академ etc.
+    payment         VARCHAR(7),             -- бюджет / контракт
+    personal_number INT        NOT NULL,
+    id_person       INT        NOT NULL REFERENCES public.person(id)  ON DELETE CASCADE,
+    id_group        INT                     REFERENCES public."group"(id)
+);
+
+-- 2. Классификационные справочники
+CREATE TABLE public.bbk (
     id          SERIAL PRIMARY KEY,
     bbk_abb     TEXT UNIQUE NOT NULL,
     description TEXT
 );
 
-CREATE TABLE IF NOT EXISTS public.udc (
+CREATE TABLE public.udc (
     id          SERIAL PRIMARY KEY,
     udc_abb     TEXT UNIQUE NOT NULL,
     description TEXT
 );
 
-/* =======================================================
-   3.  Книги, авторы, экземпляры
-   =======================================================*/
-CREATE TABLE IF NOT EXISTS public.book (
+-- 3. Книги • авторы • экземпляры
+CREATE TABLE public.book (
     id                SERIAL PRIMARY KEY,
     title             TEXT,
     "type"            TEXT,
@@ -54,62 +113,63 @@ CREATE TABLE IF NOT EXISTS public.book (
     local_index       TEXT
 );
 
-CREATE TABLE IF NOT EXISTS public.author (
-    id        SERIAL PRIMARY KEY,
-    full_name TEXT UNIQUE NOT NULL
+/* --- author ------------------------------------------ */
+CREATE TABLE public.author (
+    id          SERIAL PRIMARY KEY,
+    last_name   TEXT        NOT NULL,
+    first_name  TEXT        NOT NULL,
+    patronymic TEXT,
+    birth_year  INT,
+    CONSTRAINT author_unique_combination
+        UNIQUE (last_name, first_name, patronymic, birth_year)
 );
+/* ----------------------------------------------------- */
 
-CREATE TABLE IF NOT EXISTS public.book_author (
+CREATE TABLE public.book_author (
     book_id   INT NOT NULL REFERENCES public.book(id)   ON DELETE CASCADE,
     author_id INT NOT NULL REFERENCES public.author(id) ON DELETE CASCADE,
     PRIMARY KEY (book_id, author_id)
 );
 
-CREATE TABLE IF NOT EXISTS public.book_copy (
+CREATE TABLE public.book_copy (
     id        SERIAL PRIMARY KEY,
     book_id   INT NOT NULL REFERENCES public.book(id) ON DELETE CASCADE,
     copy_info TEXT
 );
 
-/* =======================================================
-   4.  RAW-таблицы (результат парсинга, без контроля целостности)
-   =======================================================*/
-CREATE TABLE IF NOT EXISTS public.book_bbk_raw (
-    book_id  INT NOT NULL REFERENCES public.book(id) ON DELETE CASCADE,
-    bbk_code TEXT,
+-- 4. RAW-таблицы (данные из парсера, без ссылочной целостности)
+CREATE TABLE public.book_bbk_raw (
+    book_id  INT  NOT NULL REFERENCES public.book(id) ON DELETE CASCADE,
+    bbk_code TEXT NOT NULL,
     PRIMARY KEY (book_id, bbk_code)
 );
 
-CREATE TABLE IF NOT EXISTS public.book_udc_raw (
-    book_id  INT NOT NULL REFERENCES public.book(id) ON DELETE CASCADE,
-    udc_code TEXT,
+CREATE TABLE public.book_udc_raw (
+    book_id  INT  NOT NULL REFERENCES public.book(id) ON DELETE CASCADE,
+    udc_code TEXT NOT NULL,
     PRIMARY KEY (book_id, udc_code)
 );
 
-/* =======================================================
-   5.  Связи многие-ко-многим (валидные пары)
-   =======================================================*/
-CREATE TABLE IF NOT EXISTS public.book_bbk (
+-- 5. Валидные многие-ко-многим
+CREATE TABLE public.book_bbk (
     book_id INT NOT NULL REFERENCES public.book(id) ON DELETE CASCADE,
     bbk_id  INT NOT NULL REFERENCES public.bbk(id)  ON DELETE CASCADE,
     PRIMARY KEY (book_id, bbk_id)
 );
 
-CREATE TABLE IF NOT EXISTS public.book_udc (
+CREATE TABLE public.book_udc (
     book_id INT NOT NULL REFERENCES public.book(id) ON DELETE CASCADE,
     udc_id  INT NOT NULL REFERENCES public.udc(id)  ON DELETE CASCADE,
     PRIMARY KEY (book_id, udc_id)
 );
 
-/* =======================================================
-   6.  Публикационные сведения
-   =======================================================*/
-CREATE TABLE IF NOT EXISTS public.publisher (
+-- 6. Публикационные сведения
+CREATE TABLE public.publisher (
     id   SERIAL PRIMARY KEY,
     name TEXT UNIQUE NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS public.book_pub_place (
+CREATE TABLE public.book_pub_place (
     id           SERIAL PRIMARY KEY,
     book_id      INT NOT NULL REFERENCES public.book(id)      ON DELETE CASCADE,
     publisher_id INT     REFERENCES public.publisher(id),
@@ -119,10 +179,8 @@ CREATE TABLE IF NOT EXISTS public.book_pub_place (
         CHECK (publisher_id IS NOT NULL OR city IS NOT NULL)
 );
 
-/* =======================================================
-   7.  Учёт выдач
-   =======================================================*/
-CREATE TABLE IF NOT EXISTS public.borrow_record (
+-- 7. Учёт выдач
+CREATE TABLE public.borrow_record (
     id                  SERIAL PRIMARY KEY,
     book_copy_id        INT NOT NULL REFERENCES public.book_copy(id) ON DELETE CASCADE,
     person_id           INT NOT NULL REFERENCES public.person(id)    ON DELETE CASCADE,
@@ -139,13 +197,11 @@ CREATE TABLE IF NOT EXISTS public.borrow_record (
         )
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_borrowrecord_unique_open
+CREATE UNIQUE INDEX idx_borrowrecord_unique_open
     ON public.borrow_record (book_copy_id)
     WHERE return_date IS NULL;
 
-/* =======================================================
-   8.  Триггеры &laquo;не удалять, если выдано&raquo;
-   =======================================================*/
+-- 8. Триггеры &laquo;не удалять, если выдано&raquo;
 CREATE OR REPLACE FUNCTION public.prevent_book_deletion_if_borrowed()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -178,12 +234,10 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS tr_prevent_book_deletion_if_borrowed ON public.book;
 CREATE TRIGGER tr_prevent_book_deletion_if_borrowed
     BEFORE DELETE ON public.book
     FOR EACH ROW EXECUTE FUNCTION public.prevent_book_deletion_if_borrowed();
 
-DROP TRIGGER IF EXISTS tr_prevent_book_copy_deletion_if_borrowed ON public.book_copy;
 CREATE TRIGGER tr_prevent_book_copy_deletion_if_borrowed
     BEFORE DELETE ON public.book_copy
     FOR EACH ROW EXECUTE FUNCTION public.prevent_book_copy_deletion_if_borrowed();

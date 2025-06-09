@@ -18,14 +18,15 @@ export class BooksController {
     @Query('search')         search       = '',
     @Query('searchColumn')   searchColumn = '',
     @Query('onlyAvailable',  new DefaultValuePipe(false), ParseBoolPipe)
-                              onlyAvailable: boolean,
+                            onlyAvailable: boolean,
+    @Query('onlyIssued',     new DefaultValuePipe(false), ParseBoolPipe)
+                            onlyIssued:   boolean,
     @Query('page',   new DefaultValuePipe(1),  ParseIntPipe) page  : number,
     @Query('limit',  new DefaultValuePipe(10), ParseIntPipe) limit : number,
-    /** строка вида  title.asc,localIndex.desc  */
     @Query('sort')           sort         = '',
   ) {
     return this.books.findPaginated(
-      search, searchColumn, onlyAvailable, page, limit, sort,
+      search, searchColumn, onlyAvailable, onlyIssued, page, limit, sort,
     );
   }
 

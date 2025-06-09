@@ -12,8 +12,8 @@ export class Author {
   @Column({ name: 'first_name' })
   firstName: string;
 
-  @Column({ name: 'middle_name', nullable: true })
-  middleName?: string | null;
+  @Column({ name: 'patronymic', nullable: true })
+  patronymic?: string | null;
 
   @Column({ name: 'birth_year', type: 'int', nullable: true })
   birthYear?: number | null;

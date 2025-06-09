@@ -5,8 +5,8 @@
 
 Изменения v4.3
 ──────────────
-• Adapted to new database structure: author table now has last_name, first_name, middle_name, and birth_year.
-• For old data, normalized author names are stored in first_name, with last_name as empty string, middle_name and birth_year as NULL.
+• Adapted to new database structure: author table now has last_name, first_name, patronymic, and birth_year.
+• For old data, normalized author names are stored in first_name, with last_name as empty string, patronymic and birth_year as NULL.
 • Коды BBK и UDC теперь всегда сохраняются в book_bbk_raw / book_udc_raw.
 • После заполнения *_raw выполняется прежняя фильтрация и наполнение
   book_bbk / book_udc (можно закомментировать при необходимости).
@@ -240,7 +240,7 @@ INSERT INTO public.book(
                     if author not in author_ids:
                         author_ids[author] = next_author_id
                         sql_out.write(
-                            f"INSERT INTO public.author(id, last_name, first_name, middle_name, birth_year) "
+                            f"INSERT INTO public.author(id, last_name, first_name, patronymic, birth_year) "
                             f"VALUES ({next_author_id}, '', '{sql_escape(author)}', NULL, NULL);\n")
                         next_author_id += 1
 

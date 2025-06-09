@@ -6,7 +6,7 @@ import httpClient from '../utils/httpsClient.tsx';
 export interface Author {
   id: number;
   firstName: string;
-  middleName: string | null;
+  patronymic: string | null;
   lastName: string;
   birthYear: number | null;
 }
@@ -22,7 +22,7 @@ interface AddAuthorDialogProps {
 interface RawAuthor {
   id: number;
   firstName?: string;
-  middleName?: string | null;
+  patronymic?: string | null;
   lastName?: string;
   birthYear?: number | null;
 }
@@ -34,7 +34,7 @@ const normalizeAuthor = (raw: RawAuthor): Author => {
     return {
       id: raw.id || 0,
       firstName: '',
-      middleName: null,
+      patronymic: null,
       lastName: `Автор #${raw.id || 'неизвестен'}`,
       birthYear: raw.birthYear || null,
     };
@@ -47,7 +47,7 @@ const normalizeAuthor = (raw: RawAuthor): Author => {
   return {
     id: raw.id,
     firstName,
-    middleName: raw.middleName?.trim() || null,
+    patronymic: raw.patronymic?.trim() || null,
     lastName,
     birthYear: raw.birthYear || null,
   };
@@ -141,10 +141,10 @@ const AddAuthorDialog: React.FC<AddAuthorDialogProps> = ({ open, onClose, onPick
               }}
               className="block w-full text-left rounded hover:bg-gray-100 px-2 py-1"
             >
-              {/* Отображаем имя автора: используем lastName как основное, добавляем firstName и middleName, если они есть */}
+              {/* Отображаем имя автора: используем lastName как основное, добавляем firstName и patronymic, если они есть */}
               {author.lastName}
               {author.firstName && ` ${author.firstName}`}
-              {author.middleName && ` ${author.middleName}`}
+              {author.patronymic && ` ${author.patronymic}`}
               {author.birthYear && ` (${author.birthYear})`}
             </button>
           ))}

@@ -27,6 +27,7 @@ const ImportExport: React.FC = () => {
       toast.success(`Импорт выполнен. Ответ сервера: ${JSON.stringify(res.data)}`);
     } catch (err) {
       console.error('Ошибка импорта:', err);
+      toast.error('Не удалось выполнить импорт');
     }
   };
 
@@ -44,6 +45,7 @@ const ImportExport: React.FC = () => {
       toast.success(`Экспорт выполнен: ${fileName}`);
     } catch (err) {
       console.error('Ошибка экспорта:', err);
+      toast.error('Не удалось выполнить экспорт');
     }
   };
 
@@ -60,11 +62,12 @@ const ImportExport: React.FC = () => {
       toast.success('Шаблон загружен');
     } catch (err) {
       console.error('Ошибка при загрузке шаблона:', err);
+      toast.error('Не удалось загрузить шаблон');
     }
   };
 
   return (
-    <div className="container mx-auto px-4 py-4">
+    <div className="w-full max-w-full px-4 py-4">
       <h2 className="text-xl font-semibold mb-4">Импорт / Экспорт</h2>
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <label className="text-sm font-medium">

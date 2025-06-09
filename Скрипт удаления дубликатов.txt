@@ -1,0 +1,74 @@
+BEGIN;
+
+-- 1. Собираем пары old_id → keep_id во временную таблицу
+CREATE TEMP TABLE dup ON COMMIT DROP AS
+SELECT  id               AS old_id,
+        MIN(id) OVER (PARTITION BY
+                         title,
+                         "type",
+                         edit,
+                         edition_statement,
+                         phys_desc,
+                         series,
+                         local_index
+                       ) AS keep_id
+FROM    public.book;
+
+DO $$
+DECLARE
+    dup_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO dup_count FROM dup WHERE old_id <> keep_id;
+    RAISE NOTICE 'Найдено % дублирующихся книг для обработки', dup_count;
+END $$;
+
+-- 2. Перепривязываем экземпляры
+DO $$
+DECLARE
+    updated_copies INTEGER;
+BEGIN
+    UPDATE  public.book_copy bc
+    SET     book_id = d.keep_id
+    FROM    dup d
+    WHERE   bc.book_id = d.old_id
+      AND   bc.book_id <> d.keep_id;
+    
+    GET DIAGNOSTICS updated_copies = ROW_COUNT;
+    RAISE NOTICE 'Обновлено % экземпляров книг', updated_copies;
+END $$;
+
+-- 3. Удаляем полностью одинаковые копии, оставляя по одной
+DO $$
+DECLARE
+    deleted_copies INTEGER;
+BEGIN
+    DELETE FROM public.book_copy bc
+    USING (
+        SELECT  MIN(id) AS keep_id, book_id, copy_info
+        FROM    public.book_copy
+        GROUP BY book_id, copy_info
+        HAVING  COUNT(*) > 1
+    ) clash
+    WHERE bc.book_id = clash.book_id
+      AND bc.copy_info = clash.copy_info
+      AND bc.id <> clash.keep_id;
+    
+    GET DIAGNOSTICS deleted_copies = ROW_COUNT;
+    RAISE NOTICE 'Удалено % дублирующихся экземпляров книг', deleted_copies;
+END $$;
+
+-- 4. Удаляем лишние строки book
+DO $$
+DECLARE
+    deleted_books INTEGER;
+BEGIN
+    DELETE FROM public.book b
+    USING dup d
+    WHERE b.id = d.old_id
+      AND b.id <> d.keep_id;
+    
+    GET DIAGNOSTICS deleted_books = ROW_COUNT;
+    RAISE NOTICE 'Удалено % дублирующихся книг', deleted_books;
+END $$;
+
+COMMIT;
