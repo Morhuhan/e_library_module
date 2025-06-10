@@ -1,3 +1,4 @@
+// book-copies.controller.ts
 import {
   Controller,
   Get,
@@ -9,7 +10,6 @@ import {
   ParseIntPipe,
   NotFoundException,
   Query,
-  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 import { BookCopiesService } from './book-copies.service';
@@ -53,9 +53,9 @@ export class BookCopiesController {
     return this.copiesService.remove(id);
   }
 
-  @Get('find/by-info')
-  async findByCopyInfo(@Query('info') info: string) {
-    const copy = await this.copiesService.findByCopyInfo(info);
+  @Get('find/by-inventory')
+  async findByInventoryNo(@Query('number') number: string) {
+    const copy = await this.copiesService.findByInventoryNo(number);
     if (!copy) {
       throw new NotFoundException('Экземпляр не найден');
     }
@@ -70,7 +70,6 @@ export class BookCopiesController {
     @Query('limit', ParseIntPipe) limit = 10,
   ) {
     const onlyAvailableBool = onlyAvailable === 'true';
-
     return this.copiesService.findPaginated(search, onlyAvailableBool, page, limit);
   }
 }

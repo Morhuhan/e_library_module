@@ -84,7 +84,10 @@ export interface BookPubPlace {
 
 export interface BookCopy {
   id: number;
-  copyInfo: string | null;
+  inventoryNo: string;
+  receiptDate: string | null;
+  storagePlace: string | null;
+  price: number | null;
   book: Book;
   borrowRecords?: BorrowRecord[];
 }
@@ -92,6 +95,7 @@ export interface BookCopy {
 export interface BorrowRecord {
   id: number;
   borrowDate: string;
+  expectedReturnDate: string | null;
   dueDate: string | null;
   returnDate: string | null;
   person?: Person | null;

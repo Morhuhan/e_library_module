@@ -1,3 +1,4 @@
+// BorrowRecordsList.tsx
 import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import clsx from 'clsx';
 import httpClient from '../utils/httpsClient.tsx';
@@ -12,16 +13,16 @@ const DEBOUNCE_MS = 400;
 const COLUMNS = [
   { key: 'id', label: 'ID', width: 'w-16' },
   { key: 'title', label: 'Название', width: 'w-48' },
-  { key: 'copyInfo', label: 'Экземпляр', width: 'w-36' },
+  { key: 'inventoryNo', label: 'Инв. №', width: 'w-28' },
   { key: 'person', label: 'Получатель', width: 'w-48' },
   { key: 'borrowDate', label: 'Дата выдачи', width: 'w-28' },
+  { key: 'expectedReturnDate', label: 'Срок возврата', width: 'w-28' },
   { key: 'returnDate', label: 'Дата возврата', width: 'w-28' },
   { key: 'issuedByUser', label: 'Кто выдал', width: 'w-32' },
   { key: 'acceptedByUser', label: 'Кто принял', width: 'w-32' },
 ] as const;
 
 const BorrowRecordsList: React.FC = () => {
-  // ───── Флаги состояния ─────
   const [borrowRecords, setBorrowRecords] = useState<BorrowRecord[]>([]);
   const [rawSearch, setRawSearch] = useState('');
   const [onlyDebts, setOnlyDebts] = useState(false);
@@ -31,27 +32,25 @@ const BorrowRecordsList: React.FC = () => {
   const [sort, setSort] = useState<SortState>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [reloadToken, setReloadToken] = useState(0); // для ручного перезапроса
+  const [reloadToken, setReloadToken] = useState(0);
 
-  // ───── Копирование ячеек ─────
   const handleCellClick = (e: React.MouseEvent<HTMLTableCellElement>) => {
     const text = e.currentTarget.textContent?.trim() ?? '';
-    navigator.clipboard?.writeText(text)
+    navigator.clipboard
+      ?.writeText(text)
       .then(() => toast.success(`Скопировано: "${text}"`))
       .catch(() => toast.error('Не удалось скопировать'));
   };
 
-  // ───── Смена состояния сортировки ─────
   const cycleSortState = useCallback((field: string) => {
     setSort(prev => {
       if (!prev || prev.field !== field) return { field, order: 'asc' };
       if (prev.order === 'asc') return { field, order: 'desc' };
-      return null; // сброс
+      return null;
     });
     setPage(1);
   }, []);
 
-  // ───── Запрос данных ─────
   useEffect(() => {
     const ctrl = new AbortController();
     const timeoutId = setTimeout(async () => {
@@ -85,14 +84,12 @@ const BorrowRecordsList: React.FC = () => {
     };
   }, [rawSearch, onlyDebts, page, limit, sort, reloadToken]);
 
-  // ───── Вспомогательные вычисления ─────
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const arrowFor = (field: string) => {
     if (!sort || sort.field !== field) return { char: '▼', className: 'text-gray-400' };
     return { char: sort.order === 'asc' ? '▲' : '▼', className: 'text-black' };
   };
 
-  // ───── Рендер ─────
   return (
     <div className="w-full max-w-full px-4 py-4">
       <h2 className="text-xl font-semibold mb-4">Записи о выдаче книг</h2>
@@ -103,7 +100,6 @@ const BorrowRecordsList: React.FC = () => {
         </div>
       )}
 
-      {/* ───── Фильтры поиска ───── */}
       <div className="flex flex-col sm:flex-row items-center gap-2 mb-4">
         <input
           type="text"
@@ -128,7 +124,6 @@ const BorrowRecordsList: React.FC = () => {
         </label>
       </div>
 
-      {/* ───── Таблица ───── */}
       <div className="relative overflow-x-auto border rounded">
         <div className="w-full">
           <table className="w-full text-sm">
@@ -152,7 +147,6 @@ const BorrowRecordsList: React.FC = () => {
                 })}
               </tr>
             </thead>
-
             <tbody>
               {isLoading ? (
                 <tr>
@@ -169,14 +163,16 @@ const BorrowRecordsList: React.FC = () => {
               ) : (
                 borrowRecords.map(rec => {
                   const bookTitle = rec.bookCopy?.book?.title ?? '—';
-                  const copyInfo = rec.bookCopy?.copyInfo ?? `Экз. #${rec.bookCopy?.id}`;
+                  const invNo = rec.bookCopy?.inventoryNo ?? `Экз. #${rec.bookCopy?.id}`;
                   const person = rec.person
                     ? [rec.person.lastName, rec.person.firstName, rec.person.patronymic]
                         .filter(Boolean)
                         .join(' ')
                     : '—';
-                  const issuedUser = rec.issuedByUser?.username ?? `ID ${rec.issuedByUser?.id ?? '—'}`;
-                  const acceptedUser = rec.acceptedByUser?.username ?? `ID ${rec.acceptedByUser?.id ?? '—'}`;
+                  const issuedUser =
+                    rec.issuedByUser?.username ?? `ID ${rec.issuedByUser?.id ?? '—'}`;
+                  const acceptedUser =
+                    rec.acceptedByUser?.username ?? `ID ${rec.acceptedByUser?.id ?? '—'}`;
                   const isReturned = rec.returnDate !== null;
 
                   return (
@@ -194,13 +190,16 @@ const BorrowRecordsList: React.FC = () => {
                         {bookTitle}
                       </td>
                       <td className="p-2 border" onClick={handleCellClick}>
-                        {copyInfo}
+                        {invNo}
                       </td>
                       <td className="p-2 border" onClick={handleCellClick}>
                         {person}
                       </td>
                       <td className="p-2 border" onClick={handleCellClick}>
                         {rec.borrowDate ?? '—'}
+                      </td>
+                      <td className="p-2 border" onClick={handleCellClick}>
+                        {rec.expectedReturnDate ?? '—'}
                       </td>
                       <td className="p-2 border" onClick={handleCellClick}>
                         {rec.returnDate ?? '—'}
@@ -220,7 +219,6 @@ const BorrowRecordsList: React.FC = () => {
         </div>
       </div>
 
-      {/* ───── Пагинация ───── */}
       <Pagination
         page={page}
         totalPages={totalPages}

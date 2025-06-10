@@ -1,3 +1,4 @@
+// book-copies.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { BookCopy } from './book-copy.entity';
@@ -37,9 +38,9 @@ export class BookCopiesService {
     await this.bookCopyRepository.delete(id);
   }
 
-  async findByCopyInfo(info: string): Promise<BookCopy | null> {
+  async findByInventoryNo(inventoryNo: string): Promise<BookCopy | null> {
     return this.bookCopyRepository.findOne({
-      where: { copyInfo: info },
+      where: { inventoryNo },
       relations: ['book', 'borrowRecords'],
     });
   }
@@ -55,12 +56,16 @@ export class BookCopiesService {
     page: number;
     limit: number;
   }> {
-    const qb = this.bookCopyRepository.createQueryBuilder('copy')
+    const qb = this.bookCopyRepository
+      .createQueryBuilder('copy')
       .leftJoinAndSelect('copy.book', 'book')
       .leftJoinAndSelect('copy.borrowRecords', 'borrowRecords');
 
     if (search) {
-      qb.where('book.title ILIKE :search', { search: `%${search}%` });
+      qb.where(
+        'book.title ILIKE :search OR copy.inventoryNo ILIKE :search',
+        { search: `%${search}%` },
+      );
     }
 
     if (onlyAvailable) {
@@ -77,16 +82,9 @@ export class BookCopiesService {
     }
 
     const total = await qb.getCount();
-
     qb.skip((page - 1) * limit).take(limit);
-
     const data = await qb.getMany();
 
-    return {
-      data,
-      total,
-      page,
-      limit,
-    };
+    return { data, total, page, limit };
   }
 }

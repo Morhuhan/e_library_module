@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import clsx from 'clsx';
-import { Book, Person, PaginatedResponse, Author, Bbk, Udc } from '../utils/interfaces.tsx';
+import { Book, PaginatedResponse, Author } from '../utils/interfaces.tsx';
 import httpClient from '../utils/httpsClient.tsx';
 import { toast } from 'react-toastify';
 import Pagination from '../components/Pagination.tsx';
@@ -8,7 +8,6 @@ import BorrowDetailsModal from '../components/BorrowDetailsModal.tsx';
 
 type ActionType = 'borrow' | 'return';
 
-/* ─── Колонки, по которым можно искать ─── */
 const COLUMNS = [
   { key: 'title', label: 'Название' },
   { key: 'authors', label: 'Авторы' },
@@ -24,11 +23,9 @@ const COLUMNS = [
 ] as const;
 type SearchColumn = (typeof COLUMNS)[number]['key'];
 
-/* ─── Настройка дебаунса ─── */
 const DEBOUNCE_MS = 400;
 
 const BorrowReturn: React.FC = () => {
-  /* --------------------------- Состояния -------------------------- */
   const [actionType, setActionType] = useState<ActionType>('borrow');
   const [rawSearch, setRawSearch] = useState('');
   const [searchColumn, setSearchColumn] = useState<SearchColumn>('title');
@@ -37,23 +34,8 @@ const BorrowReturn: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [books, setBooks] = useState<Book[]>([]);
   const [modalBookId, setModalBookId] = useState<number | null>(null);
-  const [persons, setPersons] = useState<Person[]>([]);
   const [reloadToken, setReloadToken] = useState(0);
 
-  /* ----------------------------- API ------------------------------ */
-  /* загружаем список людей один раз */
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await httpClient.get<Person[]>('/persons');
-        setPersons(data);
-      } catch (err) {
-        console.error('Ошибка при получении людей:', err);
-      }
-    })();
-  }, []);
-
-  /* ——— запрос книг ——— */
   const fetchBooks = useCallback(
     async (signal?: AbortSignal) => {
       const p = new URLSearchParams();
@@ -61,13 +43,8 @@ const BorrowReturn: React.FC = () => {
       p.append('searchColumn', searchColumn);
       p.append('page', String(page));
       p.append('limit', String(limit));
-
-      /* автоматическая фильтрация по типу действия */
-      if (actionType === 'borrow') {
-        p.append('onlyAvailable', 'true');
-      } else {
-        p.append('onlyIssued', 'true');
-      }
+      if (actionType === 'borrow') p.append('onlyAvailable', 'true');
+      else p.append('onlyIssued', 'true');
 
       try {
         const { data } = await httpClient.get<PaginatedResponse<Book>>(
@@ -88,18 +65,15 @@ const BorrowReturn: React.FC = () => {
     [rawSearch, searchColumn, page, limit, actionType],
   );
 
-  /* ─── дебаунсим запрос книг ─── */
   useEffect(() => {
     const ctrl = new AbortController();
     const tId = setTimeout(() => fetchBooks(ctrl.signal), DEBOUNCE_MS);
-
     return () => {
       clearTimeout(tId);
       ctrl.abort();
     };
   }, [rawSearch, searchColumn, page, limit, actionType, reloadToken, fetchBooks]);
 
-  /* -------------------------- Форматтеры -------------------------- */
   const fmtAuthors = (authors: Author[] | null) =>
     authors?.length
       ? authors
@@ -112,14 +86,11 @@ const BorrowReturn: React.FC = () => {
           .join(', ')
       : '(нет авторов)';
 
-  /* ---------------------------- UI ------------------------------- */
   return (
     <div className="w-full max-w-full px-4 py-4">
       <h2 className="text-xl font-semibold mb-4">Выдача / Возврат</h2>
 
-      {/* ─── Панель поиска ─── */}
       <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-6">
-        {/* действие */}
         <select
           value={actionType}
           onChange={e => {
@@ -132,7 +103,6 @@ const BorrowReturn: React.FC = () => {
           <option value="return">Принять</option>
         </select>
 
-        {/* колонка поиска */}
         <select
           value={searchColumn}
           onChange={(e: ChangeEvent<HTMLSelectElement>) => {
@@ -148,7 +118,6 @@ const BorrowReturn: React.FC = () => {
           ))}
         </select>
 
-        {/* строка поиска */}
         <input
           type="text"
           placeholder="Введите запрос…"
@@ -161,7 +130,6 @@ const BorrowReturn: React.FC = () => {
         />
       </div>
 
-      {/* ─── Карточки книг ─── */}
       {books.length ? (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
           {books.map(b => (
@@ -183,7 +151,6 @@ const BorrowReturn: React.FC = () => {
         <p className="text-sm text-gray-500">Ничего не найдено</p>
       )}
 
-      {/* ─── Пагинация ─── */}
       <Pagination
         page={page}
         totalPages={totalPages}
@@ -195,7 +162,6 @@ const BorrowReturn: React.FC = () => {
         }}
       />
 
-      {/* ─── Модальное окно с деталями и действиями ─── */}
       <BorrowDetailsModal
         bookId={modalBookId}
         actionType={actionType}

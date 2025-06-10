@@ -1,3 +1,4 @@
+// borrow-records.controller.ts
 import {
   Controller,
   Post,
@@ -10,7 +11,6 @@ import {
   Get,
   Query,
   DefaultValuePipe,
-  UseFilters,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { BorrowRecordsService } from './borrow-records.service';
@@ -23,10 +23,10 @@ export class BorrowRecordsController {
   @Post()
   async createBorrowRecord(
     @Body('bookCopyId') bookCopyId: number,
-    @Body('personId') personId: number, 
+    @Body('personId') personId: number,
     @Request() req: any,
   ) {
-    const userId = req.user.userId; 
+    const userId = req.user.userId;
     return this.borrowRecordsService.createBorrowRecord(bookCopyId, personId, userId);
   }
 
@@ -44,7 +44,6 @@ export class BorrowRecordsController {
     return this.borrowRecordsService.findAll();
   }
 
-
   @Get('paginated')
   async findAllPaginated(
     @Query('search') search: string,
@@ -52,7 +51,7 @@ export class BorrowRecordsController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
   ) {
-    const onlyDebtsBool = (onlyDebts === 'true');
+    const onlyDebtsBool = onlyDebts === 'true';
     return this.borrowRecordsService.findAllPaginated(search, onlyDebtsBool, page, limit);
   }
 }

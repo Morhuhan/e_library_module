@@ -1,3 +1,4 @@
+// borrow-records.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -12,14 +13,19 @@ export class BorrowRecordsService {
 
   async createBorrowRecord(
     bookCopyId: number,
-    personId: number,    
+    personId: number,
     issuedByUserId: number,
   ): Promise<BorrowRecord> {
+    const today = new Date();
+    const expectedReturn = new Date(today);
+    expectedReturn.setFullYear(expectedReturn.getFullYear() + 1);
+
     const newRecord = this.borrowRecordRepository.create({
       bookCopy: { id: bookCopyId } as any,
       person: { id: personId } as any,
       issuedByUser: { id: issuedByUserId } as any,
-      borrowDate: new Date().toISOString().split('T')[0],
+      borrowDate: today.toISOString().split('T')[0],
+      expectedReturnDate: expectedReturn.toISOString().split('T')[0],
       returnDate: null,
     });
 
@@ -43,18 +49,29 @@ export class BorrowRecordsService {
 
   findAll(): Promise<BorrowRecord[]> {
     return this.borrowRecordRepository.find({
-      relations: ['bookCopy', 'bookCopy.book', 'person', 'issuedByUser', 'acceptedByUser'],
+      relations: [
+        'bookCopy',
+        'bookCopy.book',
+        'person',
+        'issuedByUser',
+        'acceptedByUser',
+      ],
     });
   }
 
   findOne(id: number): Promise<BorrowRecord> {
     return this.borrowRecordRepository.findOne({
       where: { id },
-      relations: ['bookCopy', 'bookCopy.book', 'person', 'issuedByUser', 'acceptedByUser'],
+      relations: [
+        'bookCopy',
+        'bookCopy.book',
+        'person',
+        'issuedByUser',
+        'acceptedByUser',
+      ],
     });
   }
 
- 
   async findAllPaginated(
     search: string,
     onlyDebts: boolean,

@@ -277,8 +277,11 @@ const Lists: React.FC = () => {
                           <table className="w-full text-xs">
                             <thead className="bg-blue-200">
                               <tr>
-                                <th className="p-2 border w-24">id</th>
-                                <th className="p-2 border">Описание экземпляра</th>
+                                <th className="p-2 border w-16">id</th>
+                                <th className="p-2 border">Инв. №</th>
+                                <th className="p-2 border">Дата пост.</th>
+                                <th className="p-2 border">Место хр.</th>
+                                <th className="p-2 border">Цена</th>
                                 <th className="p-2 border w-28">Статус</th>
                               </tr>
                             </thead>
@@ -288,8 +291,15 @@ const Lists: React.FC = () => {
                                 return (
                                   <tr key={c.id}>
                                     <td className="p-2 border text-center">{c.id}</td>
-                                    <td className="p-2 border whitespace-pre-wrap">
-                                      {c.copyInfo}
+                                    <td className="p-2 border">{c.inventoryNo || '—'}</td>
+                                    <td className="p-2 border">
+                                      {c.receiptDate
+                                        ? new Date(c.receiptDate).toLocaleDateString()
+                                        : '—'}
+                                    </td>
+                                    <td className="p-2 border">{c.storagePlace || '—'}</td>
+                                    <td className="p-2 border">
+                                      {c.price != null ? c.price.toFixed(2) : '—'}
                                     </td>
                                     <td
                                       className={clsx(

@@ -1,3 +1,4 @@
+// borrow-record.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -35,6 +36,14 @@ export class BorrowRecord {
 
   @Column({ name: 'due_date', type: 'date', nullable: true })
   dueDate: string | null;
+
+  @Column({
+    name: 'expected_return_date',
+    type: 'date',
+    nullable: true,
+    default: () => "CURRENT_DATE + INTERVAL '1 year'",
+  })
+  expectedReturnDate: string | null;
 
   @Column({ name: 'return_date', type: 'date', nullable: true })
   returnDate: string | null;

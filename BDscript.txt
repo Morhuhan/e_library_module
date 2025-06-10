@@ -109,8 +109,7 @@ CREATE TABLE public.book (
     edit              TEXT,
     edition_statement TEXT,
     phys_desc         TEXT,
-    series            TEXT,
-    local_index       TEXT
+    series            TEXT
 );
 
 /* --- author ------------------------------------------ */
@@ -131,10 +130,19 @@ CREATE TABLE public.book_author (
     PRIMARY KEY (book_id, author_id)
 );
 
+-- полное создание таблицы &laquo;с нуля&raquo;
 CREATE TABLE public.book_copy (
-    id        SERIAL PRIMARY KEY,
-    book_id   INT NOT NULL REFERENCES public.book(id) ON DELETE CASCADE,
-    copy_info TEXT
+    id             SERIAL PRIMARY KEY,
+    book_id        INT NOT NULL REFERENCES public.book(id) ON DELETE CASCADE,
+
+    -- новые нормализованные данные экземпляра
+    inventory_no   TEXT      NOT NULL,      -- подполье B
+    receipt_date   DATE,                    -- подполье C
+    storage_place  TEXT,                    -- подполье D
+    price          NUMERIC(12,2),           -- подполье E; 12-цифр, 2 знака после точки
+
+    -- целостность: один и тот же инв. номер не должен повторяться для одной книги
+    UNIQUE (book_id, inventory_no)
 );
 
 -- 4. RAW-таблицы (данные из парсера, без ссылочной целостности)
@@ -183,12 +191,13 @@ CREATE TABLE public.book_pub_place (
 CREATE TABLE public.borrow_record (
     id                  SERIAL PRIMARY KEY,
     book_copy_id        INT NOT NULL REFERENCES public.book_copy(id) ON DELETE CASCADE,
-    person_id           INT NOT NULL REFERENCES public.person(id)    ON DELETE CASCADE,
+    person_id           INT NOT NULL REFERENCES public.person(id) ON DELETE CASCADE,
     borrow_date         DATE DEFAULT CURRENT_DATE,
     due_date            DATE,
     return_date         DATE,
-    issued_by_user_id   INT NOT NULL REFERENCES public.users(id)     ON DELETE CASCADE,
-    accepted_by_user_id INT     REFERENCES public.users(id)          ON DELETE CASCADE,
+    expected_return_date DATE DEFAULT CURRENT_DATE + INTERVAL '1 year',
+    issued_by_user_id   INT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    accepted_by_user_id INT REFERENCES public.users(id) ON DELETE CASCADE,
     CONSTRAINT chk_return_consistency
         CHECK (
             (accepted_by_user_id IS NULL AND return_date IS NULL)
