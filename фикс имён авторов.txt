@@ -1,0 +1,7 @@
+UPDATE public.author
+SET 
+    first_name = TRIM(first_name) || '.',
+    patronymic = TRIM(patronymic) || '.'
+WHERE 
+    first_name IS NOT NULL 
+    OR patronymic IS NOT NULL;

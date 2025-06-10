@@ -11,6 +11,7 @@ import {
   Get,
   Query,
   DefaultValuePipe,
+  ParseBoolPipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { BorrowRecordsService } from './borrow-records.service';
@@ -46,12 +47,20 @@ export class BorrowRecordsController {
 
   @Get('paginated')
   async findAllPaginated(
-    @Query('search') search: string,
-    @Query('onlyDebts') onlyDebts: string,
+    @Query('search') search = '',
+    @Query('searchColumn') searchColumn = '',
+    @Query('onlyDebts', new DefaultValuePipe(false), ParseBoolPipe) onlyDebts: boolean,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('sort') sort = '',
   ) {
-    const onlyDebtsBool = onlyDebts === 'true';
-    return this.borrowRecordsService.findAllPaginated(search, onlyDebtsBool, page, limit);
+    return this.borrowRecordsService.findAllPaginated(
+      search,
+      searchColumn,
+      onlyDebts,
+      page,
+      limit,
+      sort,
+    );
   }
 }

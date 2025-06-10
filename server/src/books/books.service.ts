@@ -70,10 +70,12 @@ export class BooksService {
       );
     }
 
+    /* ---------- формируем запрос, возвращающий только id книг ---------- */
     const qb = this.baseIdsQuery()
-      .select('book.id', 'id')
-      .groupBy('book.id');
+      .select('book.id', 'id')      // в выборке только id
+      .groupBy('book.id');          // чтобы убрать дубликаты
 
+    /* -------------------------- поиск ---------------------------------- */
     if (search) {
       const colMap: Record<string, string> = {
         title:      'book.title',
@@ -93,40 +95,33 @@ export class BooksService {
       if (searchColumn && colMap[searchColumn]) {
         const expr = colMap[searchColumn];
         const param = { s: `%${search}%` };
-
-        // простая эвристика: если в выражении есть агрегат — используем HAVING
         const usesAggregate = /string_agg|count|sum|min|max|avg/i.test(expr);
 
-        if (usesAggregate) {
-          qb.andHaving(`${expr} ILIKE :s`, param);
-        } else {
-          qb.andWhere(`${expr} ILIKE :s`, param);
-        }
+        if (usesAggregate) qb.having(`${expr} ILIKE :s`, param);
+        else               qb.where (`${expr} ILIKE :s`, param);
       } else {
-        // общий полнотекстовый поиск без изменения
-        qb.andWhere(
+        qb.where(
           `(book.title ILIKE :s
             OR book.phys_desc ILIKE :s
-            OR book.series ILIKE :s
-            OR book.edit  ILIKE :s
-            OR a.last_name   ILIKE :s
-            OR a.first_name  ILIKE :s
-            OR a.patronymic ILIKE :s)`,
+            OR book.series    ILIKE :s
+            OR book.edit      ILIKE :s
+            OR a.last_name    ILIKE :s
+            OR a.first_name   ILIKE :s
+            OR a.patronymic   ILIKE :s)`,
           { s: `%${search}%` },
         );
-
-        console.log('Запрос после добавления условия поиска:', qb.getQueryAndParameters());
       }
     }
 
+    /* -------------- фильтр доступности / выдачи ------------------------ */
     if (onlyIssued) {
       qb.andWhere(`
         EXISTS (
           SELECT 1
-            FROM book_copy bc2
-            JOIN borrow_record br2
-              ON br2.book_copy_id = bc2.id
-            AND br2.return_date IS NULL
+          FROM book_copy bc2
+          JOIN borrow_record br2
+            ON br2.book_copy_id = bc2.id
+           AND br2.return_date IS NULL
           WHERE bc2.book_id = book.id
         )
       `);
@@ -136,15 +131,16 @@ export class BooksService {
       qb.andWhere(`
         NOT EXISTS (
           SELECT 1
-            FROM book_copy bc2
-            JOIN borrow_record br2
-              ON br2.book_copy_id = bc2.id
-            AND br2.return_date IS NULL
+          FROM book_copy bc2
+          JOIN borrow_record br2
+            ON br2.book_copy_id = bc2.id
+           AND br2.return_date IS NULL
           WHERE bc2.book_id = book.id
         )
       `);
     }
 
+    /* --------------------------- сортировка ---------------------------- */
     const allowed: Record<string, { col: string; type: 'text' | 'number' }> = {
       title:             { col: 'MIN(book.title)',       type: 'text' },
       authors:           { col: "string_agg(DISTINCT a.last_name, ',')", type: 'text' },
@@ -160,22 +156,31 @@ export class BooksService {
       id:                { col: 'book.id', type: 'number' },
     };
 
-    const [singleField, ordRaw] = sort.split('.');
-    if (allowed[singleField]) {
-      const { col, type } = allowed[singleField];
-      const order: 'ASC' | 'DESC' = ordRaw === 'desc' ? 'DESC' : 'ASC';
+    const [field, dirRaw] = sort.split('.');
+    if (allowed[field]) {
+      const { col, type } = allowed[field];
+      const dir: 'ASC' | 'DESC' = dirRaw === 'desc' ? 'DESC' : 'ASC';
       if (type === 'text') {
         qb.orderBy(`CASE WHEN ${col} ~ '^[A-ZА-Я]' THEN 0 ELSE 1 END`, 'ASC')
-          .addOrderBy(`LOWER(${col})`, order);
+          .addOrderBy(`LOWER(${col})`, dir);
       } else {
-        qb.orderBy(col, order);
+        qb.orderBy(col, dir);
       }
     } else {
       qb.orderBy('book.id', 'ASC');
     }
 
-    const total = await qb.getCount();
-    const ids = await qb
+    /* ------------------- корректный подсчёт total ---------------------- */
+    const total = await this.dataSource
+      .createQueryBuilder()
+      .select('COUNT(*)', 'cnt')
+      .from('(' + qb.getQuery() + ')', 'sub')   // под-запрос со всеми where/having
+      .setParameters(qb.getParameters())       // привязываем параметры
+      .getRawOne<{ cnt: string }>()
+      .then(r => Number(r.cnt));
+
+    /* ---------------------------- страница ----------------------------- */
+    const ids = await qb.clone()
       .offset((page - 1) * limit)
       .limit(limit)
       .getRawMany<{ id: number }>()
@@ -185,6 +190,7 @@ export class BooksService {
       return { data: [], total, page, limit };
     }
 
+    /* ----------- вытаскиваем книги с нужными связями ------------------- */
     const books = await this.bookRepo.find({
       where: { id: In(ids) },
       relations: [
@@ -195,15 +201,14 @@ export class BooksService {
       ],
     });
 
-    const map = new Map<number, Book>(books.map(b => [b.id, b]));
-    const result = {
-      data: ids.map(id => map.get(id)!),
+    /* ----------- восстанавливаем порядок id после pagination ----------- */
+    const byId = new Map<number, Book>(books.map(b => [b.id, b]));
+    return {
+      data : ids.map(id => byId.get(id)!),
       total,
       page,
       limit,
     };
-
-    return result;
   }
 
   async findOneWithRelations(id: number) {

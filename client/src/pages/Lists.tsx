@@ -115,10 +115,10 @@ const Lists: React.FC = () => {
 
   return (
     <div className="w-full max-w-full px-4 py-4">
-      <h2 className="text-xl font-semibold mb-4">Список книг</h2>
+      <h2 className="text-lg font-medium mb-4">Список книг</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4">
+        <div className="bg-red-100 border rounded p-3 mb-2 text-red-700 text-sm">
           {error}
         </div>
       )}
@@ -170,7 +170,6 @@ const Lists: React.FC = () => {
           <table className="w-full text-sm">
             <thead className="bg-gray-100 select-none">
               <tr>
-                <th className="p-2 border text-center">#</th>
                 {COLUMNS.map(col => {
                   const { char, className } = arrowFor(col.key);
                   return (
@@ -190,26 +189,23 @@ const Lists: React.FC = () => {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={COLUMNS.length + 2} className="p-4 text-center">
+                  <td colSpan={COLUMNS.length + 1} className="p-4 text-center">
                     Загрузка…
                   </td>
                 </tr>
               ) : !data || !data.data.length ? (
                 <tr>
-                  <td colSpan={COLUMNS.length + 2} className="p-4 text-center">
+                  <td colSpan={COLUMNS.length + 1} className="p-4 text-center">
                     Нет книг
                   </td>
                 </tr>
               ) : (
-                data.data.map((b, i) => (
+                data.data.map((b) => (
                   <React.Fragment key={b.id}>
                     <tr
                       className="hover:bg-gray-200 cursor-pointer"
                       onClick={() => handleRowClick(b.id)}
                     >
-                      <td className="p-2 border text-center">
-                        {i + 1 + (page - 1) * limit}
-                      </td>
                       <td className="p-2 border font-medium">{b.title ?? '—'}</td>
                       <td className="p-2 border">
                         {(b.authors ?? [])
@@ -273,7 +269,7 @@ const Lists: React.FC = () => {
                     </tr>
                     {expandedId === b.id && (
                       <tr className="bg-blue-100">
-                        <td colSpan={COLUMNS.length + 2} className="p-0">
+                        <td colSpan={COLUMNS.length + 1} className="p-0">
                           <table className="w-full text-xs">
                             <thead className="bg-blue-200">
                               <tr>

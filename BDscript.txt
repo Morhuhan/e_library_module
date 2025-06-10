@@ -115,8 +115,8 @@ CREATE TABLE public.book (
 /* --- author ------------------------------------------ */
 CREATE TABLE public.author (
     id          SERIAL PRIMARY KEY,
-    last_name   TEXT        NOT NULL,
-    first_name  TEXT        NOT NULL,
+    last_name   TEXT,
+    first_name  TEXT,      
     patronymic TEXT,
     birth_year  INT,
     CONSTRAINT author_unique_combination
@@ -130,16 +130,16 @@ CREATE TABLE public.book_author (
     PRIMARY KEY (book_id, author_id)
 );
 
--- полное создание таблицы &laquo;с нуля&raquo;
+
 CREATE TABLE public.book_copy (
     id             SERIAL PRIMARY KEY,
     book_id        INT NOT NULL REFERENCES public.book(id) ON DELETE CASCADE,
 
     -- новые нормализованные данные экземпляра
-    inventory_no   TEXT      NOT NULL,      -- подполье B
-    receipt_date   DATE,                    -- подполье C
-    storage_place  TEXT,                    -- подполье D
-    price          NUMERIC(12,2),           -- подполье E; 12-цифр, 2 знака после точки
+    inventory_no   TEXT      NOT NULL,
+    receipt_date   DATE,
+    storage_place  TEXT,
+    price          NUMERIC(12,2),
 
     -- целостность: один и тот же инв. номер не должен повторяться для одной книги
     UNIQUE (book_id, inventory_no)

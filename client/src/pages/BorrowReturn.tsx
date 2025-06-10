@@ -1,4 +1,9 @@
-import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  ChangeEvent,
+} from 'react';
 import clsx from 'clsx';
 import { Book, PaginatedResponse, Author } from '../utils/interfaces.tsx';
 import httpClient from '../utils/httpsClient.tsx';
@@ -36,44 +41,7 @@ const BorrowReturn: React.FC = () => {
   const [modalBookId, setModalBookId] = useState<number | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
-  const fetchBooks = useCallback(
-    async (signal?: AbortSignal) => {
-      const p = new URLSearchParams();
-      p.append('search', rawSearch.trim());
-      p.append('searchColumn', searchColumn);
-      p.append('page', String(page));
-      p.append('limit', String(limit));
-      if (actionType === 'borrow') p.append('onlyAvailable', 'true');
-      else p.append('onlyIssued', 'true');
-
-      try {
-        const { data } = await httpClient.get<PaginatedResponse<Book>>(
-          `/books/paginated?${p.toString()}`,
-          { signal },
-        );
-        setBooks(data.data);
-        setTotalPages(Math.max(1, Math.ceil(data.total / limit)));
-      } catch (err: any) {
-        if (err.name !== 'CanceledError') {
-          console.error('Ошибка при поиске книг:', err);
-          setBooks([]);
-          setTotalPages(1);
-          toast.error('Не удалось загрузить список книг');
-        }
-      }
-    },
-    [rawSearch, searchColumn, page, limit, actionType],
-  );
-
-  useEffect(() => {
-    const ctrl = new AbortController();
-    const tId = setTimeout(() => fetchBooks(ctrl.signal), DEBOUNCE_MS);
-    return () => {
-      clearTimeout(tId);
-      ctrl.abort();
-    };
-  }, [rawSearch, searchColumn, page, limit, actionType, reloadToken, fetchBooks]);
-
+  // Функция форматирования списка авторов
   const fmtAuthors = (authors: Author[] | null) =>
     authors?.length
       ? authors
@@ -86,10 +54,57 @@ const BorrowReturn: React.FC = () => {
           .join(', ')
       : '(нет авторов)';
 
+  // Получение книг с учётом фильтров
+  const fetchBooks = useCallback(
+    async (signal?: AbortSignal) => {
+      const params = new URLSearchParams();
+      params.append('search', rawSearch.trim());
+      params.append('searchColumn', searchColumn);
+      params.append('page', String(page));
+      params.append('limit', String(limit));
+      if (actionType === 'borrow') params.append('onlyAvailable', 'true');
+      else params.append('onlyIssued', 'true');
+
+      try {
+        const { data } = await httpClient.get<PaginatedResponse<Book>>(
+          `/books/paginated?${params.toString()}`,
+          { signal },
+        );
+
+        const newTotalPages = Math.max(1, Math.ceil(data.total / limit));
+
+        setBooks(data.data);
+        setTotalPages(newTotalPages);
+
+        // Если текущая страница вышла за пределы диапазона, смещаем
+        setPage(prev => (prev > newTotalPages ? newTotalPages : prev));
+      } catch (err: any) {
+        if (err.name !== 'CanceledError') {
+          console.error('Ошибка при поиске книг:', err);
+          setBooks([]);
+          setTotalPages(1);
+          toast.error('Не удалось загрузить список книг');
+        }
+      }
+    },
+    [rawSearch, searchColumn, page, limit, actionType],
+  );
+
+  // Дебаунс-эффект для запроса данных
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const tId = setTimeout(() => fetchBooks(ctrl.signal), DEBOUNCE_MS);
+    return () => {
+      clearTimeout(tId);
+      ctrl.abort();
+    };
+  }, [rawSearch, searchColumn, page, limit, actionType, reloadToken, fetchBooks]);
+
   return (
     <div className="w-full max-w-full px-4 py-4">
       <h2 className="text-xl font-semibold mb-4">Выдача / Возврат</h2>
 
+      {/* Панель фильтров */}
       <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-6">
         <select
           value={actionType}
@@ -130,6 +145,7 @@ const BorrowReturn: React.FC = () => {
         />
       </div>
 
+      {/* Список книг */}
       {books.length ? (
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
           {books.map(b => (
@@ -151,17 +167,19 @@ const BorrowReturn: React.FC = () => {
         <p className="text-sm text-gray-500">Ничего не найдено</p>
       )}
 
+      {/* Пагинация: всегда отображается, даже при одной странице */}
       <Pagination
         page={page}
         totalPages={totalPages}
         limit={limit}
-        onPageChange={p => setPage(p)}
+        onPageChange={setPage}
         onLimitChange={l => {
           setLimit(l);
           setPage(1);
         }}
       />
 
+      {/* Модальное окно для выдачи / возврата */}
       <BorrowDetailsModal
         bookId={modalBookId}
         actionType={actionType}
