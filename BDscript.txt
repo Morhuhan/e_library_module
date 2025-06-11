@@ -63,30 +63,6 @@ CREATE TABLE public.person (
     military   VARCHAR(50)
 );
 
-/* -------------------------------------------------------
- *  Новая учебная структура: "group" и "student"
- * ----------------------------------------------------- */
-
-CREATE TABLE public."group" (
-    id         SERIAL PRIMARY KEY,
-    start_year INT          NOT NULL,
-    end_date   DATE,
-    form       VARCHAR(50),          -- очная / заочная
-    course     INT,                  -- 1..6
-    prefix     VARCHAR(5),
-    subgroup   INT,
-    name       VARCHAR(10) NOT NULL, -- условное обозначение (например, ИВТ-21-1)
-    is_active  BOOLEAN DEFAULT TRUE
-);
-
-CREATE TABLE public.student (
-    id              SERIAL PRIMARY KEY,
-    status          VARCHAR(10) NOT NULL,   -- учится / отчислен / академ etc.
-    payment         VARCHAR(7),             -- бюджет / контракт
-    personal_number INT        NOT NULL,
-    id_person       INT        NOT NULL REFERENCES public.person(id)  ON DELETE CASCADE,
-    id_group        INT                     REFERENCES public."group"(id)
-);
 
 -- 2. Классификационные справочники
 CREATE TABLE public.bbk (
@@ -183,8 +159,6 @@ CREATE TABLE public.book_pub_place (
     publisher_id INT     REFERENCES public.publisher(id),
     city         TEXT,
     pub_year     INT,
-    CONSTRAINT chk_place_not_empty
-        CHECK (publisher_id IS NOT NULL OR city IS NOT NULL)
 );
 
 -- 7. Учёт выдач

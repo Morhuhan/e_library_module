@@ -1,12 +1,11 @@
 // borrow-records.service.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BorrowRecord } from './borrow-record.entity';
 
 @Injectable()
 export class BorrowRecordsService {
-  private readonly logger = new Logger(BorrowRecordsService.name);
 
   constructor(
     @InjectRepository(BorrowRecord)
@@ -170,7 +169,6 @@ export class BorrowRecordsService {
     qb.skip((page - 1) * limit).take(limit);
 
     /* ---------- логируем SQL ---------- */
-    this.logger.debug(`Generated SQL query: ${qb.getSql()}`);
 
     const [data, total] = await qb.getManyAndCount();
     return { data, total, page, limit };
